@@ -1,0 +1,82 @@
+$ hostnamectl
+ Static hostname: abacolab
+       Icon name: computer-vm
+         Chassis: vm 🖴
+  Virtualization: oracle
+Operating System: Ubuntu 24.04.5 LTS
+          Kernel: Linux 6.8.0-147-generic
+    Architecture: x86-64
+ Hardware Vendor: innotek GmbH
+  Hardware Model: VirtualBox
+Firmware Version: VirtualBox
+   Firmware Date: Fri 2006-12-01
+    Firmware Age: 19y 10month 1w 5d
+
+$ ip -br a
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+enp0s3           UP             10.0.2.15/24 metric 100 fd17:625c:f037:2:a00:27ff:fe77:121e/64 fe80::a00:27ff:fe77:121e/64 
+enp0s8           UP             192.168.56.102/24 metric 100 fe80::a00:27ff:fef8:af29/64 
+
+$ df -h
+Filesystem                         Size  Used Avail Use% Mounted on
+tmpfs                              390M  1.2M  389M   1% /run
+efivarfs                           256K   45K  207K  18% /sys/firmware/efi/efivars
+/dev/mapper/ubuntu--vg-ubuntu--lv   37G  6.5G   28G  19% /
+tmpfs                              2.0G     0  2.0G   0% /dev/shm
+tmpfs                              5.0M     0  5.0M   0% /run/lock
+/dev/sda2                          2.0G  105M  1.7G   6% /boot
+/dev/sda1                          1.1G  6.2M  1.1G   1% /boot/efi
+tmpfs                              390M   12K  390M   1% /run/user/1000
+
+$ free -h
+               total        used        free      shared  buff/cache   available
+Mem:           3.8Gi       432Mi       3.4Gi       1.1Mi       219Mi       3.4Gi
+Swap:          3.8Gi          0B       3.8Gi
+
+$ systemctl status ssh --no-pager -l
+● ssh.service - OpenBSD Secure Shell server
+     Loaded: loaded (/usr/lib/systemd/system/ssh.service; disabled; preset: enabled)
+     Active: active (running) since Tue 2026-10-13 17:34:59 CEST; 8min ago
+TriggeredBy: ● ssh.socket
+       Docs: man:sshd(8)
+             man:sshd_config(5)
+    Process: 946 ExecStartPre=/usr/sbin/sshd -t (code=exited, status=0/SUCCESS)
+   Main PID: 947 (sshd)
+      Tasks: 1 (limit: 4548)
+     Memory: 6.7M (peak: 7.7M)
+        CPU: 139ms
+     CGroup: /system.slice/ssh.service
+             └─947 "sshd: /usr/sbin/sshd -D [listener] 0 of 10-100 startups"
+
+Oct 13 17:34:59 abacolab sshd[947]: Server listening on :: port 22.
+Oct 13 17:34:59 abacolab systemd[1]: Started ssh.service - OpenBSD Secure Shell server.
+Oct 13 17:34:59 abacolab sshd[949]: Accepted publickey for samiabaco from 192.168.56.20 port 7427 ssh2: ED25519 SHA256:Q5lLdcwzfD8NMOroqW0QIil3W91CnWNzbaTBRH5rxMU
+Oct 13 17:34:59 abacolab sshd[949]: pam_unix(sshd:session): session opened for user samiabaco(uid=1000) by samiabaco(uid=0)
+Oct 13 17:36:21 abacolab sshd[1082]: Accepted publickey for samiabaco from 192.168.56.20 port 31021 ssh2: ED25519 SHA256:Q5lLdcwzfD8NMOroqW0QIil3W91CnWNzbaTBRH5rxMU
+Oct 13 17:36:21 abacolab sshd[1082]: pam_unix(sshd:session): session opened for user samiabaco(uid=1000) by samiabaco(uid=0)
+Oct 13 17:40:12 abacolab sshd[1190]: Accepted publickey for samiabaco from 192.168.56.20 port 62225 ssh2: ED25519 SHA256:Q5lLdcwzfD8NMOroqW0QIil3W91CnWNzbaTBRH5rxMU
+Oct 13 17:40:12 abacolab sshd[1190]: pam_unix(sshd:session): session opened for user samiabaco(uid=1000) by samiabaco(uid=0)
+Oct 13 17:43:14 abacolab sshd[1295]: Accepted publickey for samiabaco from 192.168.56.20 port 51750 ssh2: ED25519 SHA256:Q5lLdcwzfD8NMOroqW0QIil3W91CnWNzbaTBRH5rxMU
+Oct 13 17:43:14 abacolab sshd[1295]: pam_unix(sshd:session): session opened for user samiabaco(uid=1000) by samiabaco(uid=0)
+
+$ systemctl is-enabled ssh ssh.socket
+disabled
+enabled
+
+$ ls -l /etc/ssh/sshd_config.d/
+total 8
+-rw------- 1 root root 27 Oct 13 14:58 50-cloud-init.conf
+-rw-r--r-- 1 root root 19 Oct 13 17:22 99-abaco.conf
+
+$ cat /etc/ssh/sshd_config.d/99-abaco.conf
+PermitRootLogin no
+
+$ uptime -s
+2026-10-13 17:33:10
+
+$ last -x reboot
+reboot   system boot  6.8.0-147-generi Tue Oct 13 17:33   still running
+reboot   system boot  6.8.0-147-generi Tue Oct 13 14:58 - 17:32  (02:34)
+
+wtmp begins Tue Oct 13 14:58:47 2026
+
