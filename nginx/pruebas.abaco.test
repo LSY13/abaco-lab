@@ -1,0 +1,16 @@
+# /etc/nginx/sites-available/pruebas.abaco.test
+server {
+    listen 80;
+    listen [::]:80;
+    server_name pruebas.abaco.test;
+
+    root /var/www/pruebas;
+    index index.html;
+
+    access_log /var/log/nginx/pruebas.access.log;
+    error_log  /var/log/nginx/pruebas.error.log;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}

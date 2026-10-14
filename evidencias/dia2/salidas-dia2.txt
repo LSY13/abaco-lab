@@ -1,3 +1,42 @@
 ## Prueba: entrar forzando contraseña (desde el PC, 14 oct)
 $ ssh -o PubkeyAuthentication=no -o PreferredAuthentications=password,keyboard-interactive samiabaco@192.168.56.102
 samiabaco@192.168.56.102: Permission denied (publickey).
+
+## Nginx accesible desde el PC tras abrir el 80 en UFW (solo 192.168.56.20)
+$ curl -sI http://192.168.56.102
+HTTP/1.1 200 OK
+Server: nginx/1.24.0 (Ubuntu)
+Date: Wed, 14 Oct 2026 11:42:05 GMT
+
+## Dos sitios tras añadir listen [::]:80 (desde la VM, 14 oct)
+$ curl -H "Host: dev.abaco.test" http://localhost
+<h1>Abaco DEV</h1><p>Sitio de desarrollo - dev.abaco.test</p>
+$ curl -H "Host: pruebas.abaco.test" http://localhost
+<h1>Abaco PRUEBAS</h1><p>Sitio de pruebas - pruebas.abaco.test</p>
+$ head -5 /etc/nginx/sites-available/*.test
+==> /etc/nginx/sites-available/dev.abaco.test <==
+server {
+    listen 80;
+    listen [::]:80;
+    server_name dev.abaco.test;
+
+
+==> /etc/nginx/sites-available/pruebas.abaco.test <==
+server {
+    listen 80;
+    listen [::]:80;
+    server_name pruebas.abaco.test;
+
+
+## Proxy /app/ sin aplicación detrás → 502 (esperado)
+$ curl -i -H "Host: dev.abaco.test" http://localhost/app/
+HTTP/1.1 502 Bad Gateway
+$ tail -1 /var/log/nginx/dev.error.log
+2026/10/14 15:19:56 [error] 3760#3760: *24 connect() failed (111: Connection refused) while connecting to upstream, client: ::1, server: dev.abaco.test, request: "GET /app/ HTTP/1.1", upstream: "http://127.0.0.1:8080/", host: "dev.abaco.test"
+$ ss -ltn | grep 8080
+(nada escuchando en 8080)
+
+## Snapshot de la VM (PC, PowerShell)
+PS> & "C:\Program Files\Oracle\VirtualBox\VBoxManage.exe" snapshot abaco-lab list
+   Name: dia2-nginx-ok (UUID: 803db18e-b748-4724-805a-4f066e02e643) *
+   Description: 14 oct: SSH sin contraseña ni root, Nginx con dev y pruebas, proxy /app/. Antes de Docker.

@@ -6,8 +6,8 @@ Nginx y Docker Compose sobre una VM de VirtualBox.
 ## Estado
 | Día | Tema | Estado |
 |---|---|---|
-| Mar 13 | Instalar Ubuntu, SSH con clave y UFW | ✅ Hecho ([instalacion.md](documentacion/instalacion.md)) · falta "qué he aprendido" |
-| Mié 14 | Nginx: dos sitios y proxy inverso | ⏳ |
+| Mar 13 | Instalar Ubuntu, SSH con clave y UFW | ✅ Hecho ([instalacion.md](documentacion/instalacion.md)) |
+| Mié 14 | Nginx: dos sitios y proxy inverso | ✅ Hecho ([despliegue.md](documentacion/despliegue.md)) · SSH reforzado (sin contraseña ni root) · snapshot `dia2-nginx-ok` |
 | Jue 15 | Docker Compose: DEV y PRUEBAS separados | ⏳ |
 | Vie 16 | Copias, restauración, diagnóstico y RCA | ⏳ |
 
@@ -15,12 +15,27 @@ Nginx y Docker Compose sobre una VM de VirtualBox.
 ```
 [ PC Windows 192.168.56.20 ] --(solo-anfitrión)--> [ VM abacolab 192.168.56.102 ]
                                                         |
-                                                      (NAT) --> Internet
+                                                      (NAT, 10.0.2.15) --> Internet
 ```
+- Red solo-anfitrión 192.168.56.0/24: PC y VM en la misma subred, se hablan directamente.
+- Red NAT 10.0.2.0/24: VirtualBox hace de router para que la VM salga a Internet.
+
+## Seguridad aplicada
+- SSH solo con clave (`PasswordAuthentication no`) y sin acceso de root (`PermitRootLogin no`), en `/etc/ssh/sshd_config.d/10-abaco.conf`.
+- UFW: todo lo entrante denegado salvo lo necesario y solo desde el PC (192.168.56.20): 22 (SSH) y 80 (HTTP).
+- Las aplicaciones detrás de Nginx escuchan solo en 127.0.0.1 (no accesibles desde fuera).
+
+## Sitios
+| URL (desde el PC, con `hosts`) | Qué sirve |
+|---|---|
+| `http://dev.abaco.test` | `/var/www/dev` |
+| `http://pruebas.abaco.test` | `/var/www/pruebas` |
+| `http://dev.abaco.test/app/` | Proxy inverso → `127.0.0.1:8080` |
 
 ## Estructura
 - `documentacion/`: instalación, despliegue, backup/restore y RCA
 - `nginx/`, `docker/`: configuraciones
 - `evidencias/diaN/`: salidas y capturas de cada día
+- `notas-lecciones.md`: lecciones de cada paso, base para la sección "Qué he aprendido"
 
 La guía completa para repetir el laboratorio se completará el viernes 16.
