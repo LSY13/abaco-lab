@@ -33,3 +33,11 @@ Lista de temas vistos. Al final del día escribo cada uno en `documentacion/inst
 27. **`PermitRootLogin no`**, `sshd_config.d/`, `sudo tee`, `sshd -t` frente a `sshd -T`.
 28. **Orden de los archivos en `sshd_config.d`** (gana el primer valor; el caso `50-cloud-init`). Pendiente para el miércoles.
 29. **No cerrar la única sesión abierta** antes de probar otra.
+
+## Día 2 · Miércoles 14
+1. **`sshd_config.d`: gana el primer valor, no el último.** Nuestro `99-abaco.conf` se leía después de
+   `50-cloud-init.conf` (`PasswordAuthentication yes`), así que nunca podía anularlo. Solución: renombrarlo a
+   `10-abaco.conf` en vez de editar o borrar un archivo que no es nuestro. En otros programas gana el último:
+   verificar siempre el valor efectivo (`sshd -T`).
+2. **Archivo correcto ≠ servicio aplicándolo**: `sshd -t`/`-T` leen el disco; el servicio en marcha necesita
+   `systemctl reload ssh` (relee sin cortar sesiones; `restart` para y arranca).

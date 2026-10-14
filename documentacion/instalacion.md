@@ -73,8 +73,28 @@ sudo sshd -T | grep -i permitrootlogin         # → permitrootlogin no
 sudo systemctl reload ssh
 ```
 - `sshd -t` sin `sudo` da `50-cloud-init.conf: Permission denied` porque ese archivo es `600 root`.
-- **Pendiente (miércoles):** `50-cloud-init.conf` mantiene `PasswordAuthentication yes`. Como sshd usa el
-  primer valor que encuentra (orden alfabético), un `99-` no lo puede anular.
+- `50-cloud-init.conf` mantenía `PasswordAuthentication yes`. Como sshd usa el primer valor que encuentra
+  (orden alfabético), un `99-` no lo podía anular. **Resuelto el 14 oct:** nuestro archivo pasa a llamarse
+  `10-abaco.conf` (se lee antes que el 50) y no se toca el archivo de cloud-init:
+  ```bash
+  sudo mv /etc/ssh/sshd_config.d/99-abaco.conf /etc/ssh/sshd_config.d/10-abaco.conf
+  echo "PasswordAuthentication no" | sudo tee -a /etc/ssh/sshd_config.d/10-abaco.conf
+  sudo sshd -t && sudo sshd -T | grep -Ei 'passwordauth|permitroot'
+  sudo systemctl reload ssh      # sin esto el servicio en marcha sigue con la configuración antigua
+  ```
+
+### Comprobaciones: usuario, sudo y acceso SSH (14 oct)
+| Comprobación | Comando | Resultado |
+|---|---|---|
+| Usuario actual | `whoami` | `samiabaco` |
+| Grupos (tiene sudo) | `id` | `uid=1000(samiabaco) … 27(sudo) …` |
+| sudo funciona | `sudo whoami` | `root` |
+| Root no entra por SSH | `sudo sshd -T \| grep -i permitrootlogin` | `permitrootlogin no` |
+| Sin contraseña por SSH | `sudo sshd -T \| grep -i passwordauthentication` | `passwordauthentication no` |
+| Archivos de configuración | `ls -l /etc/ssh/sshd_config.d/` | `10-abaco.conf` (644) y `50-cloud-init.conf` (600) |
+| Prueba real desde el PC | `ssh -o PubkeyAuthentication=no -o PreferredAuthentications=password,keyboard-interactive samiabaco@192.168.56.102` | `Permission denied (publickey).` |
+
+Evidencias: `evidencias/dia1/08-comprobaciones-usuario-sudo-ssh.png` y `evidencias/dia2/salidas-dia2.txt`.
 
 ### Otros ajustes
 - Zona horaria: `sudo timedatectl set-timezone Europe/Madrid`, para que los logs coincidan con la hora del PC.
@@ -98,8 +118,68 @@ demanda**: systemd escucha el puerto 22 y lanza sshd al llegar una conexión. Po
 | `04-practica-permisos.png` | Práctica de `chmod`, `chown`, `sudo` |
 | `05-ufw-status.png` | UFW activo con la regla 22/tcp |
 | `06-` y `07-verificacion-tras-reinicio` | Comprobaciones tras el reinicio: sistema, disco (37 GB en `/`), RAM, SSH y UFW |
+| `08-comprobaciones-usuario-sudo-ssh.png` | `whoami`, `id`, `sudo whoami`, `sshd -T` (root y contraseña en `no`) y `sshd_config.d` |
 
 Resumen: `/` 37 GB (6,5 GB usados) · RAM 3,8 GiB (406 MiB usados) · swap 3,8 GiB · Ubuntu 24.04.5 LTS, kernel 6.8.0-147.
 
-## 7. Qué he aprendido / qué falta
+## 7. Qué he aprendido, dificultades y pendientes
+
+### Qué he aprendido
+<!-- Escribir con mis palabras: el porqué, no el comando. 2-3 frases por punto. -->
+
+**Repositorio y `.gitignore`** _(¿por qué se versiona la configuración y por qué los secretos nunca entran?)_
+
 _pendiente_
+
+**Markdown en vez de Word** _(¿qué ventaja tiene para Git?)_
+
+_pendiente_
+
+**Drivers de terceros** _(¿por qué no se instalan en un servidor?)_
+
+_pendiente_
+
+**Particiones `/boot/efi`, `/boot` y `/`** _(¿qué guarda cada una?)_
+
+_pendiente_
+
+**Rutas absolutas y relativas, `~`, espacios y Tab** _(¿qué diferencia hay y qué errores evitan?)_
+
+_pendiente_
+
+**Permisos y umask** _(¿qué es un permiso como 664 y qué hace la umask 0002?)_
+
+_pendiente_
+
+**`sudo` y mínimo privilegio** _(¿por qué no trabajar siempre como root?)_
+
+_pendiente_
+
+**Fingerprint y `known_hosts`** _(¿qué protege la huella del servidor?)_
+
+_pendiente_
+
+**UFW** _(¿por qué denegar por defecto y permitir antes de activar?)_
+
+_pendiente_
+
+**Orden en `sshd_config.d`** _(¿por qué `99-abaco.conf` no funcionaba y `10-abaco.conf` sí?)_
+
+_pendiente_
+
+**No cerrar la única sesión** _(¿qué pasa si la configuración nueva falla?)_
+
+_pendiente_
+
+### Dificultades
+| Problema | Causa | Cómo lo resolví |
+|---|---|---|
+| `chmode` y `ping -c 3` sin destino dieron error | Errores al teclear el comando | Leer el mensaje de error, que indicaba qué faltaba |
+| `sshd -t` → `50-cloud-init.conf: Permission denied` | Ese archivo es `600 root` y lo leía sin privilegios | Ejecutarlo con `sudo` |
+| `PasswordAuthentication yes` seguía activo | sshd usa el primer valor y `50-cloud-init.conf` iba antes que `99-abaco.conf` | Renombrar a `10-abaco.conf` + `reload` (14 oct) |
+| Sesión "fantasma" tras `sudo reboot` | La conexión muere pero la ventana sigue abierta | Cerrarla y reconectar; tenía otra sesión abierta antes de reiniciar |
+
+### Pendientes
+- Miércoles 14: Nginx con dos sitios y proxy inverso.
+- Jueves 15: Docker Compose (DEV y PRUEBAS).
+- Viernes 16: copias, restauración y RCA.
