@@ -125,57 +125,37 @@ Resumen: `/` 37 GB (6,5 GB usados) · RAM 3,8 GiB (406 MiB usados) · swap 3,8 G
 ## 7. Qué he aprendido, dificultades y pendientes
 
 ### Qué he aprendido
-<!-- Escribir con mis palabras: el porqué, no el comando. 2-3 frases por punto. -->
 
-**Repositorio y `.gitignore`** _(¿por qué se versiona la configuración y por qué los secretos nunca entran?)_
+**Markdown en vez de Word**
+Markdown es texto plano, así que Git puede mostrar exactamente qué línea cambió, cosa que con un Word no ve.
 
-_pendiente_
+**Drivers de terceros**
+Los servidores se instalan con lo imprescindible porque cada paquete extra supone algo más que actualizar, puede fallar, etc.
 
-**Markdown en vez de Word** _(¿qué ventaja tiene para Git?)_
+**Permisos y umask**
+La umask es la máscara que decide los permisos con los que van a nacer tus archivos o carpetas.
 
-_pendiente_
+**Fingerprint y `known_hosts`**
+El fingerprint sirve para identificar un servidor; si cambia sin motivo, puede ser por un ataque.
 
-**Drivers de terceros** _(¿por qué no se instalan en un servidor?)_
+**UFW**
+Con UFW hay que habilitar primero SSH para no quedarte fuera del servidor sin querer; igualmente conviene mantener
+una sesión abierta mientras se activa UFW.
 
-_pendiente_
+**Bloquear la entrada de root por SSH**
+Root es el objetivo número uno de los ataques porque existe en todos los Linux y lo controla todo (es el primer
+usuario que probaría un atacante); por eso no se le deja entrar por SSH: se entra con un usuario normal y se usa
+`sudo`, que además deja registrado quién hizo cada cosa.
 
-**Particiones `/boot/efi`, `/boot` y `/`** _(¿qué guarda cada una?)_
-
-_pendiente_
-
-**Rutas absolutas y relativas, `~`, espacios y Tab** _(¿qué diferencia hay y qué errores evitan?)_
-
-_pendiente_
-
-**Permisos y umask** _(¿qué es un permiso como 664 y qué hace la umask 0002?)_
-
-_pendiente_
-
-**`sudo` y mínimo privilegio** _(¿por qué no trabajar siempre como root?)_
-
-_pendiente_
-
-**Fingerprint y `known_hosts`** _(¿qué protege la huella del servidor?)_
-
-_pendiente_
-
-**UFW** _(¿por qué denegar por defecto y permitir antes de activar?)_
-
-_pendiente_
-
-**Orden en `sshd_config.d`** _(¿por qué `99-abaco.conf` no funcionaba y `10-abaco.conf` sí?)_
-
-_pendiente_
-
-**No cerrar la única sesión** _(¿qué pasa si la configuración nueva falla?)_
-
-_pendiente_
+**Orden en `sshd_config.d`**
+sshd lee los archivos por orden alfabético y se queda con el primer valor, por eso nuestro archivo tiene que ir
+antes que el de cloud-init. El de cloud-init tenía `PasswordAuthentication yes`; si va antes, nuestro `no` no se
+aplica y se puede entrar con contraseña. La regla de no dejar entrar a root sí funcionaba, porque cloud-init no la
+menciona.
 
 ### Dificultades
 | Problema | Causa | Cómo lo resolví |
 |---|---|---|
-| `chmode` y `ping -c 3` sin destino dieron error | Errores al teclear el comando | Leer el mensaje de error, que indicaba qué faltaba |
-| `sshd -t` → `50-cloud-init.conf: Permission denied` | Ese archivo es `600 root` y lo leía sin privilegios | Ejecutarlo con `sudo` |
 | `PasswordAuthentication yes` seguía activo | sshd usa el primer valor y `50-cloud-init.conf` iba antes que `99-abaco.conf` | Renombrar a `10-abaco.conf` + `reload` (14 oct) |
 | Sesión "fantasma" tras `sudo reboot` | La conexión muere pero la ventana sigue abierta | Cerrarla y reconectar; tenía otra sesión abierta antes de reiniciar |
 
