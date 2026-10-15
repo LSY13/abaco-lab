@@ -122,3 +122,36 @@ Lista de temas vistos. Al final del día escribo cada uno en `documentacion/inst
    descomprimida). `docker ps` muestra contenedores en marcha y `ps -a` también los parados: `Exited (0)` = hizo
    su tarea y terminó sin error (0 = éxito, como cualquier comando de Linux). El nombre (`distracted_edison`) lo
    inventa Docker si no le damos uno.
+8. **Dockerfile frente a compose.yaml**: el Dockerfile dice **qué hay dentro** de la imagen (base, archivos,
+   programa); compose.yaml dice **cómo se ejecuta** en esta máquina (puerto, volumen, reinicio). La misma imagen
+   se puede arrancar con otro compose y otro puerto.
+9. **`.env` y `.env.example`**: Compose rellena los `${TAG}` y `${PUERTO}` con el `.env` de la carpeta. `.env`
+   (el real, podría tener secretos) está en `.gitignore` y no se sube; `.env.example` es la plantilla que sí se
+   sube. Tras el `git clone`, `.env` no existe hasta hacer `cp`. `${TAG:?mensaje}` hace que falle con un error
+   claro si falta. `.env` solo cambia variables de Compose, no el HTML.
+10. **`docker compose config`**: enseña el compose ya resuelto (sin `${…}`) sin arrancar nada. Comprobar antes
+    de arrancar.
+11. **Nombre de proyecto (`-p`)**: Compose pone delante de todo el nombre del proyecto (`abaco-dev_datos`,
+    `abaco-dev_default`, `abaco-dev-web-1`). Sin `-p` usaría el nombre de la carpeta (`dev`) y crearía otro
+    volumen distinto, vacío. Ponerlo siempre.
+12. **Capas del build**: cada instrucción del Dockerfile es una capa (`[1/3] FROM`, `[2/3] WORKDIR`, `[3/3] COPY`).
+    `FROM` descargó la base de Python en varias capas (`sha256:…`). Si se repite el build sin cambios, Docker
+    reutiliza las capas de la caché. `up -d --build`: construye y arranca en segundo plano (`-d` = detached).
+    Compose crea 4 cosas: imagen, red, volumen y contenedor.
+13. **`0.0.0.0` dentro del contenedor, `127.0.0.1` en la VM**: el contenedor tiene su propia red; si Python
+    escuchara en el `127.0.0.1` del contenedor, Docker no podría pasarle visitas. En la VM se publica
+    `127.0.0.1:3001->8080` para que solo Nginx (en la misma VM) llegue.
+14. **Un contenedor no es una VM**: es un proceso normal del mismo kernel, aislado (red, archivos y procesos
+    propios). `pgrep -af http.server` en la VM lo muestra como un proceso más. Por eso arranca en un segundo.
+15. **Por qué Nginx sigue delante de los contenedores**: es la única puerta abierta (80 en UFW); distingue
+    DEV/PRUEBAS por el nombre, centraliza los logs y mañana podría añadir HTTPS. Los contenedores quedan
+    escondidos en `127.0.0.1`. Mismo patrón que `/app/` del día 2, pero ahora el contenedor sirve el sitio entero
+    (se quitan `root`, `try_files` y `/app/`).
+
+### Errores y problemas del día 3
+| # | Qué pasó | Causa | Lección |
+|---|---|---|---|
+| 1 | `curl -i -I "host: dev.abaco.test" http://localhost` → `Malformed input to a URL` y luego `200` | Faltaba `-H`: curl tomó `"host: …"` como URL y pidió `localhost` sin cabecera `Host`; respondió el sitio por defecto | Un 200 no basta: mirar **qué** respondió (`Content-Length` 615 = página por defecto, 62 = DEV) |
+| 2 | `ping 192.168.56.20` → 100 % de pérdida | El firewall de Windows bloquea el ping | Un ping fallido no siempre es falta de red: SSH funciona por esa misma red |
+| 3 | `docker ps` → `permission denied … docker.sock` (provocado a propósito) | El socket es `root:docker` y samiabaco no está en el grupo `docker` | Es la barrera que queremos: usar `sudo docker` (ver lección 5) |
+| 4 | `ç: command not found` | Tecla suelta | Sin importancia; leer el error antes de seguir |
