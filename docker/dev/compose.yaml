@@ -1,0 +1,15 @@
+# Proyecto DEV. Arrancar siempre con nombre de proyecto: sudo docker compose -p abaco-dev up -d --build
+# Los valores ${...} salen del archivo .env de esta carpeta (copia de .env.example).
+services:
+  web:
+    build: .
+    image: abaco-web:${TAG:?falta TAG en .env}
+    ports:
+      # Solo en 127.0.0.1 de la VM: se llega a través de Nginx, nunca directamente desde fuera
+      - "127.0.0.1:${PUERTO:?falta PUERTO en .env}:8080"
+    volumes:
+      - datos:/datos
+    restart: unless-stopped
+
+volumes:
+  datos:

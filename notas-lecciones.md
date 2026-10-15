@@ -88,3 +88,37 @@ Lista de temas vistos. Al final del día escribo cada uno en `documentacion/inst
     también con 200. La pista era el tamaño (`Content-Length` 615 frente a 62).
 19. **`access.log` y 404 / 502 / no conecta** _(15 oct)_: el log dice quién, cuándo, qué, código y tamaño. 404 =
     Nginx funciona pero la ruta no existe; 502 = Nginx funciona pero la app no; no conecta = no se llega a Nginx.
+
+## Día 3 · Jueves 15
+1. **Repositorio oficial de Docker frente al paquete de Ubuntu**: `docker.io` de Ubuntu va por detrás y no trae el
+   plugin `docker compose` moderno. Se añade el repositorio de Docker a apt con dos piezas:
+   - **Clave GPG** (`/etc/apt/keyrings/docker.asc`): la firma de Docker; apt comprueba con ella que los paquetes
+     vienen de Docker y no han sido manipulados. `install -m 0755 -d` crea la carpeta con permisos en un paso;
+     `chmod a+r` deja que apt lea la clave.
+   - **Fuente** (`/etc/apt/sources.list.d/docker.sources`): "busca también aquí y verifica con esta clave"
+     (`Signed-By`). `$(. /etc/os-release && echo "$VERSION_CODENAME")` calcula `noble` (Ubuntu 24.04).
+   Comprobación: en `apt update` aparece `download.docker.com … noble InRelease`, y en la instalación los
+   paquetes vienen de `download.docker.com`. Versiones: Docker 29.9.1, Compose v5.6.0.
+2. **`tee` con `sudo`**: `sudo echo … > archivo` falla porque la redirección `>` la hace mi shell (sin permisos);
+   `sudo tee` escribe el archivo como root y además lo enseña. En pantalla sale dos veces: lo escrito (con el
+   `$(...)` sin resolver) y lo guardado (ya con `noble`).
+3. **Actualizaciones "deferred due to phasing"**: Ubuntu reparte algunas actualizaciones poco a poco entre los
+   equipos para frenarlas si dan problemas. No hay que hacer nada.
+4. **Cliente, demonio y socket**: `docker` es solo el cliente; el trabajo lo hace el demonio `dockerd`, que corre
+   como root. Se hablan por `/var/run/docker.sock` (`srw-rw---- root docker`): solo root y el grupo `docker`
+   pueden usarlo. Por eso `docker ps` sin sudo da `permission denied … docker.sock`.
+5. **Decisión de seguridad: `sudo docker`, no el grupo `docker`**: estar en el grupo `docker` equivale a ser root
+   sin contraseña (`docker run -v /:/host …` monta todo el disco dentro de un contenedor y se puede leer o
+   cambiar cualquier cosa). Con `sudo` se pide contraseña y queda registrado en `/var/log/auth.log`. Mínimo
+   privilegio (día 1).
+6. **Los 4 pasos de `hello-world`**: (1) el cliente contacta con el demonio; (2) el demonio no tiene la imagen en
+   local (`Unable to find image … locally`) y la descarga de Docker Hub (`Pulling from library/hello-world`,
+   `Digest: sha256:…` = huella que identifica la imagen exacta); (3) crea un contenedor a partir de la imagen y
+   ejecuta su programa (`/hello`); (4) el demonio pasa la salida al cliente, que la muestra en la terminal.
+7. **Imagen frente a contenedor**: la imagen es la plantilla de solo lectura (como un instalador o una clase); el
+   contenedor es una copia en marcha de esa imagen (como un programa abierto o un objeto). De una imagen salen
+   muchos contenedores. `docker images` lista imágenes (`hello-world:latest`, `latest` = etiqueta/versión;
+   `U` en EXTRA = en uso por algún contenedor; *content size* = descarga comprimida, *disk usage* = lo que ocupa
+   descomprimida). `docker ps` muestra contenedores en marcha y `ps -a` también los parados: `Exited (0)` = hizo
+   su tarea y terminó sin error (0 = éxito, como cualquier comando de Linux). El nombre (`distracted_edison`) lo
+   inventa Docker si no le damos uno.
