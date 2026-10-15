@@ -147,6 +147,24 @@ Lista de temas vistos. Al final del día escribo cada uno en `documentacion/inst
     DEV/PRUEBAS por el nombre, centraliza los logs y mañana podría añadir HTTPS. Los contenedores quedan
     escondidos en `127.0.0.1`. Mismo patrón que `/app/` del día 2, pero ahora el contenedor sirve el sitio entero
     (se quitan `root`, `try_files` y `/app/`).
+16. **Regla de la caché de capas**: en el build de PRUEBAS, `WORKDIR` salió `CACHED` y la base de Python no se
+    volvió a descargar (2,2 s frente a 7,7 s), pero `COPY` se rehízo porque el `index.html` es distinto. En cuanto
+    una capa cambia, se rehacen esa y todas las siguientes: lo que cambia a menudo va al final del Dockerfile.
+    Las imágenes `dev-1` y `pruebas-1` marcan 83 MB cada una, pero comparten las capas de Python.
+17. **Docker se salta UFW**: Docker escribe sus reglas de iptables por delante de UFW. Con `ports: "3001:8080"`
+    (sin IP) el puerto quedaría abierto a toda la red aunque UFW diga que no. Por eso la protección va en el
+    compose (`127.0.0.1:…`). Prueba desde el PC: `curl.exe -m 5 http://192.168.56.102:3001` → `Connection timed
+    out` en 3001 y 3002 (nadie escucha ahí en la IP externa y UFW descarta en silencio).
+18. **Volumen frente a capa del contenedor**: lo escrito dentro del contenedor se pierde al recrearlo (el nuevo
+    arranca limpio desde la imagen); lo que está en un volumen (gestionado por Docker fuera del contenedor,
+    montado en `/datos`) sobrevive. `docker compose -p … exec web sh` abre una shell dentro del contenedor
+    (prompt `/web #`): `hostname` devuelve el ID del contenedor y `ls /` muestra el Alpine de la imagen, no la VM.
+    Guardado `dato DEV` y `dato PRUEBAS` en `/datos/prueba.txt` de cada uno.
+19. **Etiquetas de versión (`dev-1` → `dev-2`)**: reconstruir con la misma etiqueta deja la imagen vieja como
+    `<none>` (no sabes qué versión corre ni vuelves atrás fácil). Con etiqueta nueva conviven las dos y volver
+    atrás es poner `TAG=dev-1` y `up -d`. En empresas suele ser la versión o el commit de Git.
+20. **`git pull` no toca `.env`**: actualiza `.env.example` (está en Git), pero el `.env` local de cada servidor
+    hay que cambiarlo a mano. La configuración local es responsabilidad de quien administra el servidor.
 
 ### Errores y problemas del día 3
 | # | Qué pasó | Causa | Lección |
@@ -155,3 +173,4 @@ Lista de temas vistos. Al final del día escribo cada uno en `documentacion/inst
 | 2 | `ping 192.168.56.20` → 100 % de pérdida | El firewall de Windows bloquea el ping | Un ping fallido no siempre es falta de red: SSH funciona por esa misma red |
 | 3 | `docker ps` → `permission denied … docker.sock` (provocado a propósito) | El socket es `root:docker` y samiabaco no está en el grupo `docker` | Es la barrera que queremos: usar `sudo docker` (ver lección 5) |
 | 4 | `ç: command not found` | Tecla suelta | Sin importancia; leer el error antes de seguir |
+| 5 | Anuncié que `FROM` saldría `CACHED` y salió `CACHED [2/3] WORKDIR` | `FROM` no se marca como `CACHED`; la señal de reutilización es que no hay descarga (`extracting`) y el tiempo baja | Comprobar la salida real en vez de lo esperado |
