@@ -108,6 +108,40 @@ tail -1 /var/log/nginx/dev.error.log
 ss -ltn | grep 8080          # vacío: no hay nada escuchando en el 8080
 ```
 
+#### Recorrido de una petición (completado el 15 oct)
+Una petición va del PC a la red solo-anfitrión, la interfaz de la VM, el puerto 80, Nginx y el sitio o la
+aplicación. Cada comando comprueba un eslabón:
+
+| Comando (en la VM) | Qué comprueba | Resultado |
+|---|---|---|
+| `ip -br a` | Que las interfaces tienen IP | `enp0s3` 10.0.2.15 (NAT), `enp0s8` 192.168.56.102 (solo-anfitrión), `lo` 127.0.0.1 |
+| `ip route` | Por dónde sale el tráfico | `default via 10.0.2.2` (puerta de enlace = NAT de VirtualBox); `192.168.56.0/24` directo por `enp0s8` |
+| `ping -c 3 8.8.8.8` | Salida a Internet | 0 % de pérdida |
+| `ping -c 3 192.168.56.20` | Que llego al PC | 100 % de pérdida: el firewall de Windows bloquea el ping. La red funciona (SSH entra por ella) |
+| `ss -lntp` | Qué puertos escuchan y dónde | 22 y 80 en `0.0.0.0` / `[::]` (todas las interfaces) |
+| `curl -I -H "Host: dev.abaco.test" http://localhost` | Que Nginx responde con el sitio correcto | `200 OK`, `Content-Length: 62` (página DEV) |
+
+Un `200` no basta: hay que mirar **qué** respondió. En un primer intento faltó el `-H`, así que curl tomó
+`"host: …"` como URL (`Malformed input`) y pidió `localhost` sin cabecera `Host`. Contestó el sitio por defecto,
+también con `200`, pero con `Content-Length: 615` (la página "Welcome to nginx").
+
+#### Log de accesos y códigos de error
+```bash
+curl -i -H "Host: dev.abaco.test" http://localhost/noexiste      # HTTP/1.1 404 Not Found
+sudo tail -5 /var/log/nginx/dev.access.log
+# 192.168.56.20 - - [14/Oct/2026:15:35:12 +0200] "GET /app/ HTTP/1.1" 304 0 "-" "Mozilla/5.0 (Windows NT 10.0; …) Chrome/…"
+# ::1 - - [15/Oct/2026:12:47:08 +0200] "HEAD / HTTP/1.1" 200 0 "-" "curl/8.5.0"
+# ::1 - - [15/Oct/2026:12:47:13 +0200] "GET /noexiste HTTP/1.1" 404 162 "-" "curl/8.5.0"
+```
+Cada línea registra quién (IP), cuándo, qué pidió (método y ruta), el código, los bytes y el programa cliente.
+`::1` es la propia VM por IPv6. `304` significa que el navegador ya tenía la página en caché.
+
+| Síntoma | Quién responde | Significado | Dónde mirar |
+|---|---|---|---|
+| `404 Not Found` | Nginx | Nginx funciona y conoce el sitio, pero la ruta no existe | `*.access.log` (código 404), contenido de `/var/www/…` |
+| `502 Bad Gateway` | Nginx | Nginx funciona, pero la aplicación de detrás no responde | `*.error.log` (`connect() failed (111…)`), `ss -ltn` |
+| No conecta / se queda cargando | Nadie | No se llega a Nginx: servicio parado, cortafuegos o red | `systemctl status nginx`, `ss -lntp`, `ufw status`, `ip -br a` |
+
 ### 9. Problemas encontrados
 | # | Problema | Causa | Solución |
 |---|---|---|---|
@@ -132,6 +166,9 @@ ss -ltn | grep 8080          # vacío: no hay nada escuchando en el 8080
 | `12-proxy-502-sin-aplicacion.png` | `nginx -t` + 502 sin aplicación detrás |
 | `13-navegador-proxy-app.png` | `dev.abaco.test/app/` servido por la aplicación |
 | `14-puerto-8080-bloqueado-y-log-python.png` | 8080 sin respuesta desde el PC y log de la aplicación (`127.0.0.1`, `GET /`, `304`) |
+| `15-recorrido-ip-ping-route.png` | `ip -br a`, `ping` al PC (bloqueado) y a 8.8.8.8, `ip route` (15 oct) |
+| `16-recorrido-ss-curl.png` | `ss -lntp` y el `curl` sin `-H` (página por defecto, 615 bytes) |
+| `17-curl-dev-404-access-log.png` | `curl` correcto a DEV (62 bytes), 404 y `dev.access.log` |
 
 ### 11. Punto de restauración
 Snapshot de VirtualBox `dia2-nginx-ok` antes de empezar con Docker:

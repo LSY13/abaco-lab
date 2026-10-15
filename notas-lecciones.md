@@ -81,3 +81,10 @@ Lista de temas vistos. Al final del día escribo cada uno en `documentacion/inst
 16. **Snapshot de la VM**: foto del estado completo (disco y, con la VM encendida, también la RAM) para volver
     atrás en un clic antes de un cambio grande (Docker mañana). No es una copia de seguridad: vive en el mismo
     disco que la VM y depende de ella; si se pierde el disco, se pierden los dos.
+17. **Recorrido de la petición** _(15 oct)_: cada comando comprueba un eslabón (`ip -br a` IP, `ip route` puerta
+    de enlace 10.0.2.2, `ping` llegada, `ss -lntp` quién escucha, `curl` qué responde). Un ping fallido no
+    significa que no haya red: Windows bloquea el ping y SSH funciona por esa misma red.
+18. **Un 200 no basta** _(15 oct)_: sin `-H`, curl tomó `"host: …"` como URL y respondió el sitio por defecto,
+    también con 200. La pista era el tamaño (`Content-Length` 615 frente a 62).
+19. **`access.log` y 404 / 502 / no conecta** _(15 oct)_: el log dice quién, cuándo, qué, código y tamaño. 404 =
+    Nginx funciona pero la ruta no existe; 502 = Nginx funciona pero la app no; no conecta = no se llega a Nginx.
