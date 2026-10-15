@@ -460,7 +460,14 @@ sudo docker compose -p abaco-pruebas exec web cat /datos/prueba.txt # dato PRUEB
 - Configuración a copiar: `docker/`, `nginx/` (ya en Git) y los `.env` locales (fuera de Git).
 
 ### 11. Punto de restauración
-Snapshot de VirtualBox `dia3-docker-ok`: _pendiente_
+Snapshot de VirtualBox `dia3-docker-ok` antes de empezar con las copias:
+```powershell
+& "C:\Program Files\Oracle\VirtualBox\VBoxManage.exe" snapshot abaco-lab take "dia3-docker-ok" --description "..."
+& "C:\Program Files\Oracle\VirtualBox\VBoxManage.exe" snapshot abaco-lab list
+```
+Resultado: `dia3-docker-ok (UUID: 4596afba-…) *` colgando de `dia2-nginx-ok`, con la descripción "15 oct: Docker
+oficial (sudo docker), abaco-dev 3001 y abaco-pruebas 3002 en 127.0.0.1, Nginx delante, dato en volumenes.
+Antes de copias." (el `*` marca el estado actual).
 
 ### 12. Qué he aprendido
 Apartado de aprendizajes del día 3.

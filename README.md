@@ -8,7 +8,7 @@ Nginx y Docker Compose sobre una VM de VirtualBox.
 |---|---|---|
 | Mar 13 | Instalar Ubuntu, SSH con clave y UFW | ✅ Hecho ([instalacion.md](documentacion/instalacion.md)) |
 | Mié 14 | Nginx: dos sitios y proxy inverso | ✅ Hecho ([despliegue.md](documentacion/despliegue.md)) · SSH reforzado (sin contraseña ni root) · snapshot `dia2-nginx-ok` |
-| Jue 15 | Docker Compose: DEV y PRUEBAS separados | ✅ Hecho ([despliegue.md](documentacion/despliegue.md), parte 2) · Docker oficial con `sudo docker` · Nginx delante de los contenedores |
+| Jue 15 | Docker Compose: DEV y PRUEBAS separados | ✅ Hecho ([despliegue.md](documentacion/despliegue.md), parte 2) · Docker oficial con `sudo docker` · Nginx delante de los contenedores · snapshot `dia3-docker-ok` |
 | Vie 16 | Copias, restauración, diagnóstico y RCA | ⏳ |
 
 ## Mapa
