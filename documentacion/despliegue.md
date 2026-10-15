@@ -235,4 +235,232 @@ este se pierde, se pierden los dos. Las copias de verdad se guardan en otro siti
 ---
 
 ## Parte 2 · Docker Compose (jueves 15)
-_pendiente_
+
+### 1. Objetivo
+- Empaquetar la web en una imagen Docker y arrancarla como **dos proyectos Compose independientes**:
+  `abaco-dev` y `abaco-pruebas`, cada uno con su puerto, su imagen y su volumen.
+- Poner Nginx de la VM delante: cada nombre lleva a su contenedor.
+- Demostrar que cambiar DEV no toca PRUEBAS y que recrear un contenedor conserva su dato.
+
+### 2. Esquema
+```
+                                 ┌──────────────────────── VM abacolab 192.168.56.102 ─────────────────────────┐
+[ PC 192.168.56.20 ]             │                                                                             │
+  navegador ── HTTP :80 ── UFW ──┼─▶ Nginx ── Host: dev.abaco.test     ──▶ 127.0.0.1:3001 ─▶ abaco-dev-web-1      │
+  (hosts: *.abaco.test           │          ── Host: pruebas.abaco.test ──▶ 127.0.0.1:3002 ─▶ abaco-pruebas-web-1  │
+   → 192.168.56.102)             │                                                (:8080 dentro, volumen /datos) │
+                                 │   3001 y 3002 solo en 127.0.0.1: no accesibles desde fuera                  │
+                                 └─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 3. Instalación de Docker (repositorio oficial)
+Se usa el repositorio de Docker y no el paquete `docker.io` de Ubuntu (más antiguo y sin el plugin `compose`).
+```bash
+sudo apt update
+sudo apt install -y ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+sudo tee /etc/apt/sources.list.d/docker.sources <<EOF
+Types: deb
+URIs: https://download.docker.com/linux/ubuntu
+Suites: $(. /etc/os-release && echo "$VERSION_CODENAME")
+Components: stable
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF
+
+sudo apt update                      # aparece download.docker.com … noble InRelease
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo docker run hello-world
+```
+| Componente | Versión |
+|---|---|
+| Docker Engine | 29.9.1 (build dfc520d) |
+| Docker Compose (plugin) | v5.6.0 |
+| containerd | 2.4.2 |
+
+`docker` y `containerd` quedan `active` y `enabled` (arrancan al encender la VM).
+
+**Decisión de seguridad:** se usa `sudo docker` y **no** se añade samiabaco al grupo `docker`. El demonio corre
+como root y quien puede usar `/var/run/docker.sock` (`root:docker`, `srw-rw----`) controla la máquina entera
+(p. ej. `docker run -v /:/host …`). Con `sudo` se pide contraseña y queda registro en `/var/log/auth.log`.
+Comprobación: `docker ps` sin sudo → `permission denied … docker.sock`.
+
+### 4. Archivos (`docker/dev/` y `docker/pruebas/`)
+Los archivos se escriben en el repositorio del PC, se suben a GitHub y la VM los obtiene con
+`git clone` / `git pull` (la VM solo lee el repositorio, nunca hace push).
+
+`Dockerfile` (idéntico en los dos entornos):
+```dockerfile
+FROM python:3.12-alpine
+WORKDIR /web
+COPY index.html .
+EXPOSE 8080
+CMD ["python", "-m", "http.server", "8080", "--bind", "0.0.0.0"]
+```
+`compose.yaml` (idéntico salvo el comentario):
+```yaml
+services:
+  web:
+    build: .
+    image: abaco-web:${TAG:?falta TAG en .env}
+    ports:
+      - "127.0.0.1:${PUERTO:?falta PUERTO en .env}:8080"
+    volumes:
+      - datos:/datos
+    restart: unless-stopped
+
+volumes:
+  datos:
+```
+`.env.example` (versionado) → se copia a `.env` (ignorado por `.gitignore`, local de cada servidor):
+
+| Entorno | `TAG` | `PUERTO` |
+|---|---|---|
+| DEV | `dev-1` → `dev-2` | `3001` |
+| PRUEBAS | `pruebas-1` | `3002` |
+
+- `--bind 0.0.0.0` dentro del contenedor: el contenedor tiene su propia red; si escuchara en su `127.0.0.1`,
+  Docker no podría pasarle las visitas.
+- `127.0.0.1:` en `ports`: el puerto solo se publica en el localhost de la VM. **Docker escribe sus reglas de
+  iptables por delante de UFW**: con `"3001:8080"` (sin IP) el puerto quedaría abierto a la red aunque UFW lo
+  deniegue.
+- `.env` solo rellena variables de Compose; no cambia el contenido de la web.
+
+### 5. Puesta en marcha (en la VM)
+```bash
+git clone https://github.com/LSY13/abaco-lab ~/abaco-lab
+
+cd ~/abaco-lab/docker/dev
+cp .env.example .env
+sudo docker compose -p abaco-dev config            # compose resuelto: abaco-web:dev-1, 127.0.0.1:3001
+sudo docker compose -p abaco-dev up -d --build
+sudo docker compose -p abaco-dev ps
+curl http://127.0.0.1:3001
+
+cd ~/abaco-lab/docker/pruebas
+cp .env.example .env
+sudo docker compose -p abaco-pruebas up -d --build
+sudo docker compose -p abaco-pruebas ps
+curl http://127.0.0.1:3002
+```
+**Siempre con `-p`**: sin él, Compose usa el nombre de la carpeta (`dev`, `pruebas`) y crearía otros
+recursos (`dev_datos`…), con un volumen nuevo y vacío.
+
+| Proyecto | Contenedor | Imagen | Puerto (VM → contenedor) | Volumen | Red |
+|---|---|---|---|---|---|
+| `abaco-dev` | `abaco-dev-web-1` | `abaco-web:dev-2` (antes `dev-1`) | `127.0.0.1:3001 → 8080` | `abaco-dev_datos` → `/datos` | `abaco-dev_default` |
+| `abaco-pruebas` | `abaco-pruebas-web-1` | `abaco-web:pruebas-1` | `127.0.0.1:3002 → 8080` | `abaco-pruebas_datos` → `/datos` | `abaco-pruebas_default` |
+
+Caché de capas: el build de PRUEBAS reutilizó la base de Python y `WORKDIR` (`CACHED`) y tardó 2,2 s frente a
+7,7 s; solo se rehízo `COPY` (el `index.html` es distinto). Las imágenes marcan 83 MB cada una pero comparten
+las capas de Python.
+
+### 6. Nginx delante de los contenedores
+`nginx/dev.abaco.test` (PRUEBAS igual con `pruebas.abaco.test` y `:3002`). Se quitan `root`, `try_files` y
+`location /app/`: todo el sitio lo sirve el contenedor.
+```nginx
+server {
+    listen 80;
+    listen [::]:80;
+    server_name dev.abaco.test;
+
+    access_log /var/log/nginx/dev.access.log;
+    error_log  /var/log/nginx/dev.error.log;
+
+    location / {
+        proxy_pass http://127.0.0.1:3001/;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+```bash
+sudo cp ~/abaco-lab/nginx/dev.abaco.test ~/abaco-lab/nginx/pruebas.abaco.test /etc/nginx/sites-available/
+sudo nginx -t && sudo systemctl reload nginx
+rm -r ~/app-prueba                                 # la app de Python del día 2 ya no se usa
+```
+Nginx sigue siendo la única puerta (80 en UFW): distingue los sitios por nombre, centraliza los logs y podría
+añadir HTTPS. `/var/www/dev` y `/var/www/pruebas` quedan en la VM sin uso.
+
+### 7. Cambiar solo DEV y recrear PRUEBAS
+Dato de prueba en cada volumen:
+```bash
+sudo docker compose -p abaco-dev exec web sh       # prompt /web # (dentro del contenedor)
+echo "dato DEV" > /datos/prueba.txt                 # en PRUEBAS: "dato PRUEBAS"
+exit
+```
+Cambio solo en DEV (nueva línea "Versión 2" en el HTML y nueva etiqueta):
+```bash
+cd ~/abaco-lab && git pull                          # actualiza .env.example, NO el .env local
+cd docker/dev
+sed -i 's/^TAG=dev-1/TAG=dev-2/' .env && cat .env
+sudo docker compose -p abaco-dev up -d --build
+sudo docker compose -p abaco-dev exec web cat /datos/prueba.txt     # dato DEV
+```
+Con etiqueta nueva conviven `dev-1` y `dev-2`: volver atrás es `TAG=dev-1` y `up -d`.
+
+Recrear PRUEBAS sin cambiar nada:
+```bash
+cd ~/abaco-lab/docker/pruebas
+sudo docker compose -p abaco-pruebas up -d --force-recreate        # sin -v
+sudo docker compose -p abaco-pruebas exec web cat /datos/prueba.txt # dato PRUEBAS
+```
+**`down -v` borra los volúmenes (los datos).** `down` sin `-v` los conserva.
+
+### 8. Pruebas
+| Prueba | Desde | Comando / URL | Resultado esperado | Resultado |
+|---|---|---|---|---|
+| Docker sin sudo | VM | `docker ps` | `permission denied … docker.sock` | ✅ (esperado) |
+| Docker funciona | VM | `sudo docker run hello-world` | `Hello from Docker!` | ✅ |
+| Compose válido | VM | `sudo docker compose -p abaco-dev config` | `abaco-web:dev-1`, `127.0.0.1:3001` | ✅ |
+| Servicios en marcha | VM | `sudo docker compose -p … ps` | `Up` en los dos | ✅ |
+| Contenedores directos | VM | `curl http://127.0.0.1:3001` / `:3002` | HTML de cada entorno | ✅ |
+| Volúmenes separados | VM | `sudo docker volume ls` | `abaco-dev_datos`, `abaco-pruebas_datos` | ✅ |
+| Nginx → contenedores | VM | `curl -H "Host: dev.abaco.test" http://localhost` | "servido desde un contenedor Docker" | ✅ |
+| Navegador | PC | `http://dev.abaco.test`, `http://pruebas.abaco.test` | Cada uno su entorno | ✅ |
+| Puertos no accesibles desde fuera | PC | `curl.exe -m 5 http://192.168.56.102:3001` / `:3002` | Sin conexión | ✅ (`Connection timed out`) |
+| Escuchan solo en localhost | VM | `ss -lnt \| grep 300` | `127.0.0.1:3001` y `127.0.0.1:3002` | ✅ |
+| Cambiar DEV no toca PRUEBAS | VM / PC | `curl` a los dos + `docker ps` | DEV con "Versión 2"; PRUEBAS sin ella y sin recrear | ✅ |
+| DEV recreado conserva el dato | VM | `exec web cat /datos/prueba.txt` | `dato DEV` | ✅ |
+| PRUEBAS recreado conserva el dato | VM | `up -d --force-recreate` + `exec … cat` | `dato PRUEBAS` | ✅ |
+
+### 9. Evidencias (`evidencias/dia3/`)
+| Archivo | Contenido |
+|---|---|
+| `01-clave-y-fuente-docker.png` | Clave GPG y `docker.sources` con `Suites: noble` |
+| `02-apt-update-repo-docker.png` | `apt update` con `download.docker.com` |
+| `03-apt-install-docker.png` | Instalación de los paquetes de Docker |
+| `04-docker-ps-denegado-y-hello-world.png` | `docker ps` sin sudo (denegado) y `hello-world` |
+| `05-docker-images-y-ps-a.png` | Imagen `hello-world` y contenedor `Exited (0)` |
+| `06-clone-y-env.png` | `git clone` en la VM y `.env` de DEV |
+| `07-compose-config-dev.png` | `compose config` resuelto |
+| `08-up-build-dev.png` | Build y arranque de DEV |
+| `09-ps-y-curl-dev.png` | DEV `Up` y `curl 127.0.0.1:3001` |
+| `10-` y `11-…-pruebas.png` | `git pull`, build (con caché), `ps` y `curl` de PRUEBAS |
+| `12-volumenes-e-imagenes.png` | Dos volúmenes y dos imágenes |
+| `13-nginx-proxy-contenedores.png` | `nginx -t`, reload y los dos sitios por Nginx |
+| `14-retirada-app-prueba.png` | `~/app-prueba` borrada |
+| `15-` y `16-navegador-…-contenedor.png` | Los dos sitios desde el navegador del PC |
+| `17-puertos-3001-3002-no-accesibles-desde-pc.png` | `Connection timed out` desde el PC |
+| `18-dato-en-volumenes-dev-y-pruebas.png` | `exec web sh` y el dato en cada volumen |
+| `19a-` y `19b-…env….png` | `git pull` (`.env` sigue en `dev-1`) y `sed` a `dev-2` |
+| `20-build-dev-2-images-ps.png` | Build `dev-2`, imágenes `dev-1` y `dev-2`, PRUEBAS sin recrear |
+| `21-curl-dev-v2-pruebas-v1.png` | DEV con "Versión 2", PRUEBAS sin ella |
+| `21b-dato-dev-conservado-tras-recrear.png` | `dato DEV` en el contenedor nuevo |
+| `22-navegador-dev-version-2.png` | "Versión 2" con la tilde correcta |
+| `23-recrear-pruebas-conserva-dato.png` | `--force-recreate` de PRUEBAS y `dato PRUEBAS` |
+
+### 10. Para el viernes (copias)
+- Dato a copiar y restaurar: volumen **`abaco-dev_datos`**, archivo **`/datos/prueba.txt`** (`dato DEV`).
+  En la VM vive en `/var/lib/docker/volumes/abaco-dev_datos/_data/` (solo root).
+- Configuración a copiar: `docker/`, `nginx/` (ya en Git) y los `.env` locales (fuera de Git).
+
+### 11. Punto de restauración
+Snapshot de VirtualBox `dia3-docker-ok`: _pendiente_
+
+### 12. Qué he aprendido
+Apartado de aprendizajes del día 3.

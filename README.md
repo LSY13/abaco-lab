@@ -8,7 +8,7 @@ Nginx y Docker Compose sobre una VM de VirtualBox.
 |---|---|---|
 | Mar 13 | Instalar Ubuntu, SSH con clave y UFW | ✅ Hecho ([instalacion.md](documentacion/instalacion.md)) |
 | Mié 14 | Nginx: dos sitios y proxy inverso | ✅ Hecho ([despliegue.md](documentacion/despliegue.md)) · SSH reforzado (sin contraseña ni root) · snapshot `dia2-nginx-ok` |
-| Jue 15 | Docker Compose: DEV y PRUEBAS separados | ⏳ |
+| Jue 15 | Docker Compose: DEV y PRUEBAS separados | ✅ Hecho ([despliegue.md](documentacion/despliegue.md), parte 2) · Docker oficial con `sudo docker` · Nginx delante de los contenedores |
 | Vie 16 | Copias, restauración, diagnóstico y RCA | ⏳ |
 
 ## Mapa
@@ -24,13 +24,17 @@ Nginx y Docker Compose sobre una VM de VirtualBox.
 - SSH solo con clave (`PasswordAuthentication no`) y sin acceso de root (`PermitRootLogin no`), en `/etc/ssh/sshd_config.d/10-abaco.conf`.
 - UFW: todo lo entrante denegado salvo lo necesario y solo desde el PC (192.168.56.20): 22 (SSH) y 80 (HTTP).
 - Las aplicaciones detrás de Nginx escuchan solo en 127.0.0.1 (no accesibles desde fuera).
+- Docker: `sudo docker`, sin grupo `docker` (equivale a root). Puertos publicados solo en `127.0.0.1`, porque
+  Docker se salta UFW si publica en todas las interfaces.
 
 ## Sitios
 | URL (desde el PC, con `hosts`) | Qué sirve |
 |---|---|
-| `http://dev.abaco.test` | `/var/www/dev` |
-| `http://pruebas.abaco.test` | `/var/www/pruebas` |
-| `http://dev.abaco.test/app/` | Proxy inverso → `127.0.0.1:8080` |
+| `http://dev.abaco.test` | Nginx → `127.0.0.1:3001` → contenedor `abaco-dev-web-1` (imagen `abaco-web:dev-2`, volumen `abaco-dev_datos`) |
+| `http://pruebas.abaco.test` | Nginx → `127.0.0.1:3002` → contenedor `abaco-pruebas-web-1` (imagen `abaco-web:pruebas-1`, volumen `abaco-pruebas_datos`) |
+
+Hasta el día 2 los sitios eran archivos en `/var/www/` y `/app/` iba a una aplicación de Python en el 8080;
+desde el día 3 los sirven los contenedores.
 
 ## Estructura
 - `documentacion/`: instalación, despliegue, backup/restore y RCA

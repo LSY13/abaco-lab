@@ -165,6 +165,12 @@ Lista de temas vistos. Al final del día escribo cada uno en `documentacion/inst
     atrás es poner `TAG=dev-1` y `up -d`. En empresas suele ser la versión o el commit de Git.
 20. **`git pull` no toca `.env`**: actualiza `.env.example` (está en Git), pero el `.env` local de cada servidor
     hay que cambiarlo a mano. La configuración local es responsabilidad de quien administra el servidor.
+21. **Recrear conserva el volumen**: DEV se recreó al cambiar de imagen (ID nuevo `a5ddf81ad7dc`, antes
+    `34943ffa3c5a`; Compose puso `Started`, no `Recreated`) y PRUEBAS con `--force-recreate` sin cambiar nada; en
+    los dos el dato de `/datos` siguió ahí. PRUEBAS no se tocó al cambiar DEV (seguía "creado hace 2 horas").
+    `dev-1` perdió la `U` (ningún contenedor la usa) pero sigue disponible para volver atrás.
+22. **`down` frente a `down -v`**: `down` borra contenedores y red pero conserva los volúmenes; `down -v` también
+    borra los volúmenes, es decir, los datos. Nunca sin estar seguro y sin copia.
 
 ### Errores y problemas del día 3
 | # | Qué pasó | Causa | Lección |
