@@ -182,6 +182,39 @@ Lista de temas vistos. Al final del día escribo cada uno en `documentacion/inst
    `curl -H "Host: …"`. En la tabla del recorrido: IP, puerta de enlace, DNS, puerto y HTTP quedan cubiertos.
 2. **`compose config` de los dos proyectos**: el PDF pedía validar ambos; el jueves solo se hizo DEV. Revisar
    el checklist contra lo hecho antes de dar algo por terminado.
+3. **Línea base**: foto del estado antes de tocar nada (servicios, carga, RAM, disco, puertos, logs) para
+   comparar cuando algo falle y ver qué cambió. Lo primero al llegar a un servidor.
+4. **Leer los recursos**: load average = carga media de 1/5/15 min (con 2 vCPU, menos de 2 es holgado); en
+   `top`, `id` = % de CPU libre; en `free -h` importa `available` (Linux usa la RAM sobrante como caché
+   `buff/cache` y la libera cuando hace falta); `df -h` el % usado (19 % → 21 % por las imágenes de Docker).
+5. **`sudo ss -lntp` y `docker-proxy`**: con sudo aparece qué proceso escucha. `docker-proxy` es el programa de
+   Docker que reenvía `127.0.0.1:3001` al contenedor (`172.18.0.2:8080`).
+6. **Leer `journalctl -p warning -b`**: no todo aviso es un problema; se clasifica (inofensivo, esperado,
+   vigilar). Ahí apareció la prueba de seguridad del jueves: `[UFW BLOCK] SRC=192.168.56.20 … DPT=3001/3002`,
+   la prueba de que el timeout lo causó UFW descartando los paquetes.
+7. **Redes de Docker por proyecto**: en los logs del contenedor el origen es `172.18.0.1` (DEV) y `172.19.0.1`
+   (PRUEBAS), la puerta de enlace de la red de cada proyecto, no la IP del PC: el contenedor solo ve a quien
+   le reenvía (por eso Nginx añade `X-Real-IP`). Cada proyecto tiene su propia red: separación también en red.
+   `HTTP/1.0`: Nginx habla al backend en HTTP/1.0 por defecto.
+8. **`uptime` y VM pausada**: arrancó el 15 a las 12:36 pero `uptime` marca 15 h y `uptime -s` dice 16 a las
+   00:14: con el PC suspendido la VM estuvo pausada y `uptime` no cuenta ese tiempo; al reanudar, NTP corrigió
+   la hora (`Clock change detected`). Contrastar fuentes (journal, `systemctl status`) antes de fiarse de una.
+
+## Hallazgos de interés (para el tutor)
+Cosas que no pedía el PDF pero que aparecieron al mirar con detalle, con su evidencia:
+| Día | Hallazgo | Evidencia |
+|---|---|---|
+| 1 | `ubuntu-lv` venía con la mitad del disco (18,5 GB); ampliado en el instalador | `dia1/01` |
+| 1-2 | `50-cloud-init.conf` (`PasswordAuthentication yes`) anulaba nuestro `99-abaco.conf`: en sshd gana el primer valor | `dia1/08`, `instalacion.md` |
+| 1 | En Ubuntu 24.04 SSH arranca bajo demanda (`ssh.socket`): `ssh.service` sale `disabled` y aun así funciona | `instalacion.md` §6 |
+| 2 | Los sitios daban la página por defecto: `localhost` va primero por IPv6 y faltaba `listen [::]:80;` | `dia2/07-09` |
+| 2 | Un `200` puede venir del sitio equivocado: el tamaño (615 frente a 62 bytes) lo delató | `dia2/16-17` |
+| 3 | Un contenedor es un proceso más de la VM (`pgrep` lo muestra) | `notas` día 3, lección 14 |
+| 3 | Docker se salta UFW si publica en todas las interfaces; por eso `127.0.0.1:` en `ports` | `dia3/17` |
+| 4 | Las rutas "raras" `… via 10.0.2.2` de `ip route` son las de los DNS que da el NAT | `dia2/15`, `dia4/02` |
+| 4 | El `journal` guarda la prueba de seguridad del jueves: `[UFW BLOCK] SRC=192.168.56.20 … DPT=3001/3002` | `dia4/07` |
+| 4 | Cada proyecto Compose tiene su propia red (`172.18.0.1` DEV, `172.19.0.1` PRUEBAS) | `dia4/08` |
+| 4 | `uptime` no cuenta el tiempo con la VM pausada (PC suspendido): 15 h frente a ~27 h reales | `dia4/04`, `incidencia-rca.md` §1 |
 
 ### Errores y problemas del día 3
 | # | Qué pasó | Causa | Lección |
