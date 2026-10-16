@@ -97,7 +97,9 @@ Copia de la configuración y del volumen `abaco-dev_datos`, restaurada y validad
 
 ## Demostración
 Vídeo con SSH, DEV/PRUEBAS, independencia de datos y restauración, guardado fuera de la VM y del repositorio en
-`C:\Users\ghall\abaco-entrega\demo\`. El enlace va en la tarea semanal.
+`C:\Users\ghall\abaco-entrega\demo\demo-abaco-lab.mp4` (7 min 26 s, con voz). El enlace va en la tarea semanal.
+
+Punto de vuelta final de la VM: snapshot de VirtualBox `dia4-final` (tras `dia2-nginx-ok` y `dia3-docker-ok`).
 
 ## Límites
 - Solo laboratorio local: sin HTTPS, sin dominio real y sin acceso desde Internet; los nombres `*.abaco.test`
@@ -127,7 +129,6 @@ Documentación oficial enlazada en el plan de formación:
 ## Pendientes
 - RCA: causa raíz y prevención ([incidencia-rca.md](documentacion/incidencia-rca.md) §4).
 - "Qué he aprendido" de los días 3 y 4.
-
 - Opcional, no hecho: fallo de permisos o de Compose, `init: true` en Compose, automatizar copias.
 
 ## Estructura
