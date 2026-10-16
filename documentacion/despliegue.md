@@ -2,6 +2,10 @@
 
 ## Parte 1 · Nginx: dos sitios y proxy inverso (miércoles 14)
 
+> **Nota (16 oct):** esta parte describe el estado del miércoles. El jueves se retiraron `location /app/`, la
+> aplicación de Python (`~/app-prueba`) y Nginx dejó de servir `/var/www` (sigue en la VM, sin uso): ahora cada
+> sitio entero va a su contenedor (ver Parte 2, §6). Las configuraciones vigentes son las de `nginx/`.
+
 ### 1. Objetivo
 - Servir dos sitios en la misma VM y la misma IP: `dev.abaco.test` y `pruebas.abaco.test`.
 - Preparar un proxy inverso `dev.abaco.test/app/` → `127.0.0.1:8080` (mañana, un contenedor Docker).
@@ -118,6 +122,9 @@ aplicación. Cada comando comprueba un eslabón:
 | `ip route` | Por dónde sale el tráfico | `default via 10.0.2.2` (puerta de enlace = NAT de VirtualBox); `192.168.56.0/24` directo por `enp0s8` |
 | `ping -c 3 8.8.8.8` | Salida a Internet | 0 % de pérdida |
 | `ping -c 3 192.168.56.20` | Que llego al PC | 100 % de pérdida: el firewall de Windows bloquea el ping. La red funciona (SSH entra por ella) |
+| `cat /etc/resolv.conf`, `resolvectl status enp0s3` | Qué DNS se usa (16 oct) | `nameserver 127.0.0.53` (systemd-resolved, resolutor local); DNS reales que da el NAT de VirtualBox: `100.100.1.1`, `100.90.1.1`, `192.168.56.10` |
+| `resolvectl query ubuntu.com` | Que los nombres se traducen a IP | 7 IPv4 + 7 IPv6 en 52,7 ms, por `enp0s3` |
+| `getent hosts dev.abaco.test` | Si la VM conoce nuestros nombres | Nada: `*.abaco.test` solo existe en el `hosts` del PC; en la VM se usa `curl -H "Host: …"` |
 | `ss -lntp` | Qué puertos escuchan y dónde | 22 y 80 en `0.0.0.0` / `[::]` (todas las interfaces) |
 | `curl -I -H "Host: dev.abaco.test" http://localhost` | Que Nginx responde con el sitio correcto | `200 OK`, `Content-Length: 62` (página DEV) |
 
@@ -169,6 +176,7 @@ Cada línea registra quién (IP), cuándo, qué pidió (método y ruta), el cód
 | `15-recorrido-ip-ping-route.png` | `ip -br a`, `ping` al PC (bloqueado) y a 8.8.8.8, `ip route` (15 oct) |
 | `16-recorrido-ss-curl.png` | `ss -lntp` y el `curl` sin `-H` (página por defecto, 615 bytes) |
 | `17-curl-dev-404-access-log.png` | `curl` correcto a DEV (62 bytes), 404 y `dev.access.log` |
+| `../dia4/02-dns-resolv-resolvectl-getent.png` | DNS: `resolv.conf`, `resolvectl status/query`, `getent` sin resultado (16 oct) |
 
 ### 11. Punto de restauración
 Snapshot de VirtualBox `dia2-nginx-ok` antes de empezar con Docker:
@@ -416,7 +424,8 @@ sudo docker compose -p abaco-pruebas exec web cat /datos/prueba.txt # dato PRUEB
 |---|---|---|---|---|
 | Docker sin sudo | VM | `docker ps` | `permission denied … docker.sock` | ✅ (esperado) |
 | Docker funciona | VM | `sudo docker run hello-world` | `Hello from Docker!` | ✅ |
-| Compose válido | VM | `sudo docker compose -p abaco-dev config` | `abaco-web:dev-1`, `127.0.0.1:3001` | ✅ |
+| Compose válido (DEV) | VM | `sudo docker compose -p abaco-dev config` | `abaco-web:dev-1`, `127.0.0.1:3001` | ✅ |
+| Compose válido (PRUEBAS) | VM | `sudo docker compose -p abaco-pruebas config` | `abaco-web:pruebas-1`, `127.0.0.1:3002`, `abaco-pruebas_datos` | ✅ (16 oct, `evidencias/dia4/01`) |
 | Servicios en marcha | VM | `sudo docker compose -p … ps` | `Up` en los dos | ✅ |
 | Contenedores directos | VM | `curl http://127.0.0.1:3001` / `:3002` | HTML de cada entorno | ✅ |
 | Volúmenes separados | VM | `sudo docker volume ls` | `abaco-dev_datos`, `abaco-pruebas_datos` | ✅ |

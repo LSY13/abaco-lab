@@ -172,6 +172,17 @@ Lista de temas vistos. Al final del día escribo cada uno en `documentacion/inst
 22. **`down` frente a `down -v`**: `down` borra contenedores y red pero conserva los volúmenes; `down -v` también
     borra los volúmenes, es decir, los datos. Nunca sin estar seguro y sin copia.
 
+## Día 4 · Viernes 16
+1. **DNS y systemd-resolved**: el DNS traduce nombres a IPs. En Ubuntu los programas preguntan a un resolutor
+   local (`nameserver 127.0.0.53`, el `127.0.0.53:53` que salía en `ss`), y este pregunta a los DNS reales que da
+   el NAT de VirtualBox (`100.100.1.1`, `100.90.1.1`, `192.168.56.10`). Esas mismas IPs son las rutas "raras"
+   `… via 10.0.2.2` que salían en `ip route`: el DHCP del NAT añade una ruta para llegar a cada DNS.
+   `resolvectl query ubuntu.com` → 14 direcciones (IPv4 e IPv6) en 52,7 ms. `getent hosts dev.abaco.test` no
+   devuelve nada: ese nombre solo existe en el `hosts` del PC (nos saltamos el DNS), por eso en la VM se usa
+   `curl -H "Host: …"`. En la tabla del recorrido: IP, puerta de enlace, DNS, puerto y HTTP quedan cubiertos.
+2. **`compose config` de los dos proyectos**: el PDF pedía validar ambos; el jueves solo se hizo DEV. Revisar
+   el checklist contra lo hecho antes de dar algo por terminado.
+
 ### Errores y problemas del día 3
 | # | Qué pasó | Causa | Lección |
 |---|---|---|---|
