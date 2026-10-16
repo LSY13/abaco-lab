@@ -3,9 +3,9 @@
 | Sección | Estado (16 oct) |
 |---|---|
 | 1. Observación del sistema (línea base) | ✅ Hecha |
-| 2. Fallo A: Nginx parado | ⏳ Siguiente paso |
-| 3. Fallo B: proxy de DEV a un puerto sin servicio (502) | ⏳ Pendiente |
-| 4. RCA completo de una incidencia | ⏳ Pendiente |
+| 2. Fallo A: Nginx parado | ✅ Hecho |
+| 3. Fallo B: proxy de DEV a un puerto sin servicio (502) | ✅ Hecho |
+| 4. RCA completo de una incidencia | 🔄 Datos listos; causa raíz y prevención por escribir |
 
 ## 1. Observación del sistema: línea base (viernes 16, 15:27)
 Estado del servidor antes de provocar fallos, para comparar con él durante el diagnóstico.
@@ -52,3 +52,134 @@ tener en cuenta esas pausas, y `uptime` no sirve para saber cuándo arrancó la 
 
 Evidencias: `evidencias/dia4/03-servicios-failed-status.png` · `04-uptime-free-df.png` · `05-top.png` ·
 `06-ss-lntp-procesos.png` · `07-journalctl-warnings.png` · `08-logs-compose.png`.
+
+## 2. Fallo A: Nginx parado (viernes 16, 17:15)
+Fallo provocado a propósito con `sudo systemctl stop nginx` y diagnosticado como si no se conociera la causa,
+eslabón a eslabón y comparando con la línea base (§1). SSH no se toca.
+
+```bash
+curl.exe -s -o NUL -w "%{http_code}\n" http://dev.abaco.test       # PC: antes → 200
+sudo systemctl stop nginx                                          # VM: provocar el fallo
+curl.exe -m 5 -I http://dev.abaco.test                             # PC: síntoma
+systemctl status nginx --no-pager                                  # VM: diagnóstico
+sudo ss -lntp | grep ':80 '
+sudo journalctl -u nginx --since "15 min ago" --no-pager
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3001     # VM: aislar el eslabón
+sudo systemctl start nginx                                         # VM: corrección
+systemctl is-active nginx
+sudo ss -lntp | grep ':80 '
+curl.exe -s -o NUL -w "%{http_code}\n" http://dev.abaco.test       # PC: verificación
+curl.exe -s -o NUL -w "%{http_code}\n" http://pruebas.abaco.test
+```
+
+| Fase | Evidencia | Lectura |
+|---|---|---|
+| Antes | `curl.exe` → `200` | Punto de partida correcto |
+| Síntoma (PC) | `curl: (7) Failed to connect to dev.abaco.test:80 after 2018 ms: Could not connect to server`; navegador: `ERR_CONNECTION_REFUSED` ("ha rechazado la conexión") | Conexión **rechazada**, no *timeout*: el paquete llega a la VM y UFW deja pasar el 80, pero nadie escucha |
+| Servicio | `systemctl status nginx` → `inactive (dead) since Fri 2026-10-16 17:15:18 CEST`; `enabled`; `Main PID: 10377 (code=exited, status=0/SUCCESS)`; `ExecStop=… --stop --retry QUIT/5` | Parada ordenada (código 0), no un fallo del programa (sería `failed` con otro código). Sigue `enabled`: arrancaría al reiniciar |
+| Puerto | `sudo ss -lntp \| grep ':80 '` → sin salida | En la línea base `nginx` escuchaba en `0.0.0.0:80` y `[::]:80`; ahora nadie |
+| Log | `journalctl -u nginx` → `17:15:18 Stopping nginx.service…` / `Deactivated successfully.` / `Stopped nginx.service…` | Dice **cuándo** se paró y que fue una parada pedida, no una caída |
+| Aislar | `curl http://127.0.0.1:3001` → `200` | El contenedor de DEV funciona: el eslabón roto es **solo Nginx** |
+| Hipótesis | — | Nginx está parado y nada escucha en el 80 |
+| Corrección | `sudo systemctl start nginx` → `systemctl is-active nginx` → `active` | — |
+| Verificación | `ss` → `nginx` en `0.0.0.0:80` y `[::]:80` (PIDs nuevos 17220-17222); PC: `dev` → `200`, `pruebas` → `200` | Vuelta al estado inicial |
+
+En Windows una conexión rechazada no falla al instante: `curl` tardó 2018 ms porque Windows reintenta el SYN
+tras recibir el rechazo (RST) antes de rendirse. Es distinto del *timeout* del jueves contra el 3001 (UFW
+descarta el paquete y no llega respuesta hasta agotar `-m 5`); el navegador lo deja claro con
+`ERR_CONNECTION_REFUSED`.
+
+Evidencias: `evidencias/dia4/18-curl-antes-y-nginx-parado.png` · `19-navegador-connection-refused.png` ·
+`20-diagnostico-status-ss-journal-curl3001.png` · `21a-start-nginx-active-ss.png` · `21b-curl-dev-pruebas-200.png`.
+
+## 3. Fallo B: proxy de DEV a un puerto sin servicio (viernes 16, 17:32)
+Fallo provocado cambiando en el sitio de DEV el destino del proxy de `127.0.0.1:3001` (el contenedor) a
+`127.0.0.1:3009` (donde no escucha nadie). Antes se comprobó que `/etc/nginx/sites-available/dev.abaco.test` era
+idéntico a la copia del repositorio (`~/abaco-lab/nginx/dev.abaco.test`), que sirve de original para restaurar.
+
+```bash
+sudo sed -i 's/127.0.0.1:3001/127.0.0.1:3009/' /etc/nginx/sites-available/dev.abaco.test   # provocar
+grep -n proxy_pass /etc/nginx/sites-available/dev.abaco.test
+sudo nginx -t
+sudo systemctl reload nginx
+curl.exe -I http://dev.abaco.test                                            # PC: síntoma
+curl.exe -s -o NUL -w "%{http_code}\n" http://pruebas.abaco.test
+tail -n 3 /var/log/nginx/dev.error.log                                       # VM: diagnóstico
+sudo ss -lntp | grep -E ':3001|:3009'
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3001
+diff ~/abaco-lab/nginx/dev.abaco.test /etc/nginx/sites-available/dev.abaco.test
+sudo cp ~/abaco-lab/nginx/dev.abaco.test /etc/nginx/sites-available/         # corrección
+sudo nginx -t
+sudo systemctl reload nginx
+diff ~/abaco-lab/nginx/dev.abaco.test /etc/nginx/sites-available/dev.abaco.test && echo IDENTICO
+curl.exe -s -o NUL -w "%{http_code}\n" http://dev.abaco.test                 # PC: verificación
+curl.exe -s -o NUL -w "%{http_code}\n" http://pruebas.abaco.test
+```
+
+| Fase | Evidencia | Lectura |
+|---|---|---|
+| Cambio | `grep` → `13: proxy_pass http://127.0.0.1:3009/;` | El destino del proxy apunta a un puerto vacío |
+| Validación | `nginx -t` → `syntax is ok` / `test is successful` | **`nginx -t` solo valida la sintaxis**: un puerto equivocado le parece correcto |
+| Síntoma (PC) | `HTTP/1.1 502 Bad Gateway`, `Server: nginx/1.24.0 (Ubuntu)`, `Date: … 15:32:25 GMT`; navegador: página "502 Bad Gateway" | **Hay respuesta y la da Nginx**: Nginx funciona, falla lo de detrás (al revés que el fallo A) |
+| Alcance | `pruebas.abaco.test` → `200` | Solo afecta a DEV |
+| Log de errores | `2026/10/16 17:32:25 [error] … connect() failed (111: Connection refused) while connecting to upstream, client: 192.168.56.20, server: dev.abaco.test, request: "HEAD / HTTP/1.1", upstream: "http://127.0.0.1:3009/"` (y otra a las 17:32:47, la del navegador) | El log dice el **puerto exacto** al que intenta ir y que allí nadie contesta (111 = rechazada) |
+| Log de accesos | `dev.access.log` → `17:32:25 "HEAD /" 502` · `17:32:47 "GET /" 502` · `17:36:41 "GET /" 200` | Cronología de la caída y de la vuelta |
+| Puertos | `ss` → solo `127.0.0.1:3001` (`docker-proxy`); nada en 3009 | Confirma que el 3009 está vacío |
+| Aislar | `curl http://127.0.0.1:3001` → `200` | La aplicación está bien; falla **a dónde la manda Nginx** |
+| Comparar con el original | `diff` → líneas 2 (comentario) y 13 (`proxy_pass`): `3001` frente a `3009` | Localiza el cambio exacto |
+| Hipótesis | — | `proxy_pass` de DEV apunta a un puerto sin servicio |
+| Corrección | Restaurar el original del repo (`cp`) → `nginx -t` OK → `reload` → `diff` → `IDENTICO` | — |
+| Verificación | PC: `dev` → `200`, `pruebas` → `200` | Vuelta al estado inicial |
+
+Notas:
+- `sed` cambió también el comentario de la línea 2, que contenía el mismo texto. El `diff` con el original lo
+  mostró: una sustitución automática puede tocar más de lo que se quería.
+- La cabecera `Date` de HTTP va en GMT (15:32:25) y los logs de Nginx en hora local, CEST (17:32:25): misma hora
+  con 2 h de diferencia. Hay que tenerlo en cuenta al cruzar evidencias.
+- La primera línea de `dev.error.log` (14 oct, `/app/` → `127.0.0.1:8080`) es del día 2, de antes de arrancar la
+  aplicación de Python: el mismo tipo de error.
+
+Evidencias: `evidencias/dia4/22-sed-3009-nginx-t-ok-reload.png` · `23-curl-502-pruebas-200.png` ·
+`24-navegador-502.png` · `25-error-log-ss-curl3001-diff.png` · `26a-restaurar-original-nginx-t-identico.png` ·
+`26b-curl-dev-pruebas-200.png`.
+
+## 4. RCA: 502 en dev.abaco.test (16 oct 2026)
+### Resumen
+Entre las 17:32 y las 17:36 del 16 oct `http://dev.abaco.test` respondió `502 Bad Gateway`: Nginx enviaba las
+peticiones a `127.0.0.1:3009`, donde no hay ningún servicio. Se resolvió restaurando la configuración original.
+(Incidencia provocada a propósito en el laboratorio.)
+
+### Impacto
+| | |
+|---|---|
+| Servicio afectado | DEV (`dev.abaco.test`); PRUEBAS sin afectar (`200`) |
+| Duración | ~4 min (primer 502 registrado 17:32:25 → primer 200 17:36:41) |
+| Peticiones fallidas | 2 (`dev.access.log`: `HEAD /` y `GET /`, las dos de 192.168.56.20) |
+| Datos | Sin pérdida: el contenedor y su volumen no se tocaron |
+
+### Cronología (CEST)
+| Hora | Hecho | Fuente |
+|---|---|---|
+| ~17:31 | Cambio de `proxy_pass` a `:3009`, `nginx -t` OK y `reload` | Captura 22 |
+| 17:32:25 | Primer 502 (`curl -I` desde el PC) | `dev.access.log`, `dev.error.log` |
+| 17:32:47 | Segundo 502 (navegador) | `dev.access.log`, `dev.error.log` |
+| 17:3x | Diagnóstico: `error.log` → upstream `:3009`; `ss`; `curl :3001` → 200; `diff` | Captura 25 |
+| ~17:36 | Restauración del original, `nginx -t`, `reload` | Captura 26a |
+| 17:36:41 | Primer 200 desde el PC | `dev.access.log` |
+
+### Detección
+Por el síntoma desde el cliente (`502` en `curl` y en el navegador). No hay monitorización que avise.
+
+### Evidencias
+`dev.error.log` (`connect() failed (111: Connection refused) … upstream: "http://127.0.0.1:3009/"`),
+`dev.access.log`, `ss -lntp`, `curl` a `127.0.0.1:3001` y `diff` con el original (ver §3).
+
+### Causa raíz
+_(Por escribir: Sami.)_
+
+### Corrección aplicada
+Restaurar `/etc/nginx/sites-available/dev.abaco.test` desde la copia del repositorio, `sudo nginx -t`,
+`sudo systemctl reload nginx` y comprobar `200` en DEV y PRUEBAS.
+
+### Prevención
+_(Por escribir: Sami.)_

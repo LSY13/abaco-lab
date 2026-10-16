@@ -221,12 +221,36 @@ Lista de temas vistos. Al final del día escribo cada uno en `documentacion/inst
     `&& echo` solo se ejecuta si el comando anterior fue bien (código 0).
 15. **Validar el funcionamiento, no solo el archivo**: un contenedor temporal con la imagen de DEV y el volumen
     restaurado (`127.0.0.1:3091`) sirvió la web y leyó `dato DEV`, igual que el original. Luego `docker rm -f`.
+16. **Método de diagnóstico**: síntoma → evidencias → hipótesis → corrección → verificación, eslabón a eslabón
+    y comparando con la línea base. Aunque sepamos qué hemos roto, se diagnostica como si no se supiera.
+17. **Refused frente a timeout**: *connection refused* = el paquete llega pero nadie escucha en ese puerto (el
+    sistema contesta con un rechazo, RST); *timeout* = el cortafuegos tira el paquete y no llega respuesta. Con
+    Nginx parado: `ERR_CONNECTION_REFUSED`; el jueves, contra el 3001 desde el PC: timeout (UFW). En Windows el
+    rechazo tarda unos 2 s (`after 2018 ms`) porque reintenta el SYN antes de rendirse.
+18. **`stop` frente a `disable`**: `stop` para el servicio ahora, pero sigue `enabled` y arrancaría al
+    reiniciar; `disable` quita el arranque automático. `status=0/SUCCESS` + `Deactivated successfully` = parada
+    ordenada, no una caída (sería `failed` con otro código). `journalctl -u nginx` dice cuándo pasó.
+19. **Aislar el eslabón**: `curl http://127.0.0.1:3001` → `200` demuestra que el contenedor funciona; el fallo
+    está solo en Nginx. Probar cada pieza por separado acota dónde está el problema.
+20. **502 Bad Gateway**: Nginx funciona y responde (`Server: nginx`), pero no consigue hablar con el backend.
+    Al revés que el fallo A, donde no respondía nadie. El `error.log` del sitio da el upstream exacto
+    (`connect() failed (111: Connection refused) … upstream: "http://127.0.0.1:3009/"`).
+21. **`nginx -t` solo valida la sintaxis**: con `proxy_pass` a un puerto vacío dijo `test is successful`.
+    "OK" no significa "funciona"; la prueba real es pedir la página.
+22. **Comparar con el original**: `diff` repo ↔ `/etc` encuentra el cambio exacto, y restaurar es copiar el
+    original (`cp` + `nginx -t` + `reload`). Por eso se conservan los originales. El `diff` enseñó además que
+    `sed` había cambiado también el comentario de la línea 2.
+23. **RCA**: resumen, impacto (qué, cuánto tiempo, a quién), cronología con horas de los logs, detección,
+    evidencias, causa raíz, corrección y prevención. Los logs de accesos dan la duración exacta (17:32:25 →
+    17:36:41). Ojo: la cabecera HTTP `Date` va en GMT y los logs en CEST (+2 h).
 
 ### Errores y problemas del día 4
 | # | Qué pasó | Causa | Lección |
 |---|---|---|---|
 | 1 | `tar` de la configuración: `-bash: home/samiabaco/abaco-lab/docker: No such file or directory` y archivo de solo 532 bytes con 2 archivos | La línea, muy larga, se pegó partida en dos: `tar` se ejecutó sin la última ruta y bash intentó ejecutar la ruta como si fuera un comando (de ahí el error de `-bash`, no de `tar`). La carpeta sí existía (comprobado por SSH) | Leer **quién** da el error (`-bash:` frente a `tar:`). Comprobar justo después (`tar -tzvf` y tamaño). Comandos más cortos y una línea por bloque, marcada con ▶. Evidencia: `dia4/09a` |
 | 2 | Los 3 comandos de restaurar la configuración (`tar -xzf … -C ~/restore-test/config` y los dos `diff`) → `No such file or directory` | La carpeta se creó como `confi` (faltó la última letra al pegar `mkdir -p ~/restore-test/config`). `tar -C` no crea la carpeta destino, así que falló, y los `diff` no encontraron nada que comparar | Un error al principio arrastra a los siguientes: arreglar el primero (`mv confi config`). Comprobar con `ls` que lo creado se llama como debe |
+| 3 | `^[[200~sudo ss -lntp \| grep ':80 '~` → `sudo: command not found` | Al pegar, la marca de "pegado entre corchetes" (`ESC[200~ … ESC[201~`, con la que el terminal avisa a bash de que el texto es pegado) se coló como texto: la línea empezaba por `^[[200~sudo` y bash buscó un programa con ese nombre | Si aparece `^[[200~` al principio, la línea no es la que se pegó: borrarla y volver a pegarla (o escribirla). Al repetirlo salió bien. Evidencia: `dia4/20` |
+| 4 | `curl.exe -s -o NUL …` → `curl.exe: command not found` (dos veces) | Era un comando de **PC** tecleado en la sesión de la **VM**: `curl.exe` es el nombre en Windows; en Linux es `curl` | Mirar el prompt antes de pegar (`samiabaco@abacolab` = VM, `PS C:\…>` = PC) y el `▶ VM`/`▶ PC` del paso. Repetido en PowerShell: `200` y `200`. Evidencia: `dia4/26a-26b` |
 
 ## Hallazgos de interés (para el tutor)
 Cosas que no pedía el PDF pero que aparecieron al mirar con detalle, con su evidencia:
@@ -245,6 +269,12 @@ Cosas que no pedía el PDF pero que aparecieron al mirar con detalle, con su evi
 | 4 | `compose stop` de DEV tardó 10,4 s: Python es el PID 1 del contenedor y el PID 1 ignora `SIGTERM` si no lo gestiona, así que Docker espera los 10 s de gracia y lo mata con `SIGKILL`. Mejora posible: `init: true` en el compose o `STOPSIGNAL SIGINT` en el Dockerfile (no aplicada) | `dia4/10` |
 | 4 | La copia se restauró desde el PC (no desde la VM) y se validó con un contenedor que la usa: se demuestra que sirve, no solo que existe | `dia4/14-16`, `backup-restore.md` |
 | 4 | `uptime` no cuenta el tiempo con la VM pausada (PC suspendido): 15 h frente a ~27 h reales | `dia4/04`, `incidencia-rca.md` §1 |
+| 4 | En Windows una conexión rechazada tarda ~2 s (`after 2018 ms`): reintenta el SYN tras el RST. Refused (Nginx parado) ≠ timeout (UFW, jueves); el navegador lo dice claro: `ERR_CONNECTION_REFUSED` | `dia4/18-19` |
+| 4 | Con Nginx parado, el contenedor seguía dando `200` en `127.0.0.1:3001`: el fallo era de un solo eslabón | `dia4/20` |
+| 4 | `nginx -t` dio `test is successful` con `proxy_pass` a un puerto vacío: valida sintaxis, no que el destino exista | `dia4/22` |
+| 4 | `sed` cambió también el comentario de la línea 2; solo el `diff` con el original lo mostró | `dia4/25` |
+| 4 | La cabecera HTTP `Date` va en GMT (15:32:25) y los logs de Nginx en CEST (17:32:25): misma hora, 2 h de diferencia | `dia4/23`, `dev.access.log` |
+| 4 | Con `dev.access.log` se mide la caída exacta del fallo B: 17:32:25 → 17:36:41 (~4 min, 2 peticiones fallidas) | `incidencia-rca.md` §4 |
 
 ### Errores y problemas del día 3
 | # | Qué pasó | Causa | Lección |

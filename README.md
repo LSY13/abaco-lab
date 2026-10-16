@@ -9,7 +9,7 @@ Nginx y Docker Compose sobre una VM de VirtualBox.
 | Mar 13 | Instalar Ubuntu, SSH con clave y UFW | ✅ Hecho ([instalacion.md](documentacion/instalacion.md)) |
 | Mié 14 | Nginx: dos sitios y proxy inverso | ✅ Hecho ([despliegue.md](documentacion/despliegue.md)) · SSH reforzado (sin contraseña ni root) · snapshot `dia2-nginx-ok` |
 | Jue 15 | Docker Compose: DEV y PRUEBAS separados | ✅ Hecho ([despliegue.md](documentacion/despliegue.md), parte 2) · Docker oficial con `sudo docker` · Nginx delante de los contenedores · snapshot `dia3-docker-ok` |
-| Vie 16 | Copias, restauración, diagnóstico y RCA | 🔄 En curso · ✅ Revisión de huecos (config de PRUEBAS, DNS) · ✅ Línea base del sistema ([incidencia-rca.md](documentacion/incidencia-rca.md) §1) · ✅ Copia, restauración y validación ([backup-restore.md](documentacion/backup-restore.md)) · ⏳ Dos fallos y RCA · ⏳ README final, reinicio de comprobación y demo |
+| Vie 16 | Copias, restauración, diagnóstico y RCA | 🔄 En curso · ✅ Revisión de huecos (config de PRUEBAS, DNS) · ✅ Línea base del sistema ([incidencia-rca.md](documentacion/incidencia-rca.md) §1) · ✅ Copia, restauración y validación ([backup-restore.md](documentacion/backup-restore.md)) · ✅ Fallos A (Nginx parado) y B (502) · 🔄 RCA (falta causa raíz y prevención) · ⏳ README final, reinicio de comprobación y demo |
 
 ## Mapa
 ```
