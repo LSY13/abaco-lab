@@ -1,5 +1,12 @@
 # Incidencias y RCA (día 4)
 
+| Sección | Estado (16 oct) |
+|---|---|
+| 1. Observación del sistema (línea base) | ✅ Hecha |
+| 2. Fallo A: Nginx parado | ⏳ Siguiente paso |
+| 3. Fallo B: proxy de DEV a un puerto sin servicio (502) | ⏳ Pendiente |
+| 4. RCA completo de una incidencia | ⏳ Pendiente |
+
 ## 1. Observación del sistema: línea base (viernes 16, 15:27)
 Estado del servidor antes de provocar fallos, para comparar con él durante el diagnóstico.
 

@@ -199,6 +199,34 @@ Lista de temas vistos. Al final del día escribo cada uno en `documentacion/inst
 8. **`uptime` y VM pausada**: arrancó el 15 a las 12:36 pero `uptime` marca 15 h y `uptime -s` dice 16 a las
    00:14: con el PC suspendido la VM estuvo pausada y `uptime` no cuenta ese tiempo; al reanudar, NTP corrigió
    la hora (`Clock change detected`). Contrastar fuentes (journal, `systemctl status`) antes de fiarse de una.
+9. **Qué hace buena a una copia**: coherente (sin escrituras mientras se copia), verificable (hash), fuera del
+   servidor (el snapshot no lo es) y probada (restaurada y comparada). "Una copia solo queda demostrada cuando
+   has restaurado y validado su contenido" (PDF).
+10. **`tar` con `-C /` y rutas relativas**: `-c` crear, `-z` gzip, `-f` archivo, `-t` listar sin extraer, `-v`
+    detalle. Con `-C /` y rutas sin `/` delante el archivo guarda rutas relativas: al restaurar se extrae donde
+    elijas (`-C carpeta`) y no encima de `/etc` por accidente. Se incluyen los `.env`, que solo existen en la VM.
+11. **Copia de un volumen (método de Docker)**: `compose stop` (sin escrituras) → contenedor temporal
+    `docker run --rm -v abaco-dev_datos:/datos:ro -v ~/backups:/backup alpine:3.20 tar -czf … -C /datos .`
+    (`--rm` se borra al acabar, `:ro` solo lectura) → `compose start`. Mientras DEV está parado, el sitio da 502:
+    es la **ventana de corte**, que en producción se planifica. `stop`/`start` no recrea: el contenedor seguía
+    "creado hace 23 horas". `prueba.txt` = 9 bytes (`dato DEV` + salto de línea).
+12. **`sha256sum` y `tee`**: huella del archivo; si cambia un bit, cambia entera. `tee` muestra y guarda a la vez
+    (`SHA256SUMS`). Los `.tar.gz` son de root (creados con `sudo`) pero legibles (644).
+13. **`scp`**: copia archivos por SSH (misma clave y cifrado). Con comillas (`"…:backups/*"`) el `*` lo resuelve
+    la VM; sin `/` delante la ruta es relativa al home remoto. Mismo hash en el PC (Windows en mayúsculas) =
+    copia intacta. `sha256sum -c SHA256SUMS` lo comprueba de golpe.
+14. **Restaurar desde la copia de fuera y en otra ubicación**: se restauró desde la copia del PC (simula perder
+    el servidor) en `~/restore-test` y en un volumen nuevo `abaco-dev_restore`, sin tocar los originales.
+    `tar -x … -C carpeta` extrae donde digas (la carpeta debe existir). `diff -r` sin salida = idénticos;
+    `&& echo` solo se ejecuta si el comando anterior fue bien (código 0).
+15. **Validar el funcionamiento, no solo el archivo**: un contenedor temporal con la imagen de DEV y el volumen
+    restaurado (`127.0.0.1:3091`) sirvió la web y leyó `dato DEV`, igual que el original. Luego `docker rm -f`.
+
+### Errores y problemas del día 4
+| # | Qué pasó | Causa | Lección |
+|---|---|---|---|
+| 1 | `tar` de la configuración: `-bash: home/samiabaco/abaco-lab/docker: No such file or directory` y archivo de solo 532 bytes con 2 archivos | La línea, muy larga, se pegó partida en dos: `tar` se ejecutó sin la última ruta y bash intentó ejecutar la ruta como si fuera un comando (de ahí el error de `-bash`, no de `tar`). La carpeta sí existía (comprobado por SSH) | Leer **quién** da el error (`-bash:` frente a `tar:`). Comprobar justo después (`tar -tzvf` y tamaño). Comandos más cortos y una línea por bloque, marcada con ▶. Evidencia: `dia4/09a` |
+| 2 | Los 3 comandos de restaurar la configuración (`tar -xzf … -C ~/restore-test/config` y los dos `diff`) → `No such file or directory` | La carpeta se creó como `confi` (faltó la última letra al pegar `mkdir -p ~/restore-test/config`). `tar -C` no crea la carpeta destino, así que falló, y los `diff` no encontraron nada que comparar | Un error al principio arrastra a los siguientes: arreglar el primero (`mv confi config`). Comprobar con `ls` que lo creado se llama como debe |
 
 ## Hallazgos de interés (para el tutor)
 Cosas que no pedía el PDF pero que aparecieron al mirar con detalle, con su evidencia:
@@ -214,6 +242,8 @@ Cosas que no pedía el PDF pero que aparecieron al mirar con detalle, con su evi
 | 4 | Las rutas "raras" `… via 10.0.2.2` de `ip route` son las de los DNS que da el NAT | `dia2/15`, `dia4/02` |
 | 4 | El `journal` guarda la prueba de seguridad del jueves: `[UFW BLOCK] SRC=192.168.56.20 … DPT=3001/3002` | `dia4/07` |
 | 4 | Cada proyecto Compose tiene su propia red (`172.18.0.1` DEV, `172.19.0.1` PRUEBAS) | `dia4/08` |
+| 4 | `compose stop` de DEV tardó 10,4 s: Python es el PID 1 del contenedor y el PID 1 ignora `SIGTERM` si no lo gestiona, así que Docker espera los 10 s de gracia y lo mata con `SIGKILL`. Mejora posible: `init: true` en el compose o `STOPSIGNAL SIGINT` en el Dockerfile (no aplicada) | `dia4/10` |
+| 4 | La copia se restauró desde el PC (no desde la VM) y se validó con un contenedor que la usa: se demuestra que sirve, no solo que existe | `dia4/14-16`, `backup-restore.md` |
 | 4 | `uptime` no cuenta el tiempo con la VM pausada (PC suspendido): 15 h frente a ~27 h reales | `dia4/04`, `incidencia-rca.md` §1 |
 
 ### Errores y problemas del día 3
