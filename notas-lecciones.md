@@ -243,6 +243,11 @@ Lista de temas vistos. Al final del día escribo cada uno en `documentacion/inst
 23. **RCA**: resumen, impacto (qué, cuánto tiempo, a quién), cronología con horas de los logs, detección,
     evidencias, causa raíz, corrección y prevención. Los logs de accesos dan la duración exacta (17:32:25 →
     17:36:41). Ojo: la cabecera HTTP `Date` va en GMT y los logs en CEST (+2 h).
+24. **Reinicio de comprobación**: un servidor tiene que volver solo. Lo garantizan `enabled` en systemd (Nginx,
+    Docker, SSH), `restart: unless-stopped` en Compose (contenedores) y los volúmenes (datos fuera del
+    contenedor). Tras `sudo reboot` (17:46:04): SSH con clave, root rechazado, servicios `active`, contenedores
+    `Up`, `dato DEV`/`dato PRUEBAS` y `200`/`200`. `sudo` volvió a pedir contraseña: su caché no sobrevive al
+    reinicio.
 
 ### Errores y problemas del día 4
 | # | Qué pasó | Causa | Lección |
@@ -275,6 +280,7 @@ Cosas que no pedía el PDF pero que aparecieron al mirar con detalle, con su evi
 | 4 | `sed` cambió también el comentario de la línea 2; solo el `diff` con el original lo mostró | `dia4/25` |
 | 4 | La cabecera HTTP `Date` va en GMT (15:32:25) y los logs de Nginx en CEST (17:32:25): misma hora, 2 h de diferencia | `dia4/23`, `dev.access.log` |
 | 4 | Con `dev.access.log` se mide la caída exacta del fallo B: 17:32:25 → 17:36:41 (~4 min, 2 peticiones fallidas) | `incidencia-rca.md` §4 |
+| 4 | Tras el reinicio final todo volvió solo (SSH, Nginx, Docker, contenedores, datos, UFW). Ubuntu ofrece `26.04.1 LTS`: no se actualiza, el plan pide 24.04 | `dia4/27a-29`, `incidencia-rca.md` §5 |
 
 ### Errores y problemas del día 3
 | # | Qué pasó | Causa | Lección |

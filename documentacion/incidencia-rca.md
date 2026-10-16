@@ -6,6 +6,7 @@
 | 2. Fallo A: Nginx parado | ✅ Hecho |
 | 3. Fallo B: proxy de DEV a un puerto sin servicio (502) | ✅ Hecho |
 | 4. RCA completo de una incidencia | 🔄 Datos listos; causa raíz y prevención por escribir |
+| 5. Reinicio de comprobación final | ✅ Hecho |
 
 ## 1. Observación del sistema: línea base (viernes 16, 15:27)
 Estado del servidor antes de provocar fallos, para comparar con él durante el diagnóstico.
@@ -183,3 +184,23 @@ Restaurar `/etc/nginx/sites-available/dev.abaco.test` desde la copia del reposit
 
 ### Prevención
 _(Por escribir: Sami.)_
+
+## 5. Reinicio de comprobación final (viernes 16, 17:46)
+Tras los dos fallos se reinició la VM (`sudo reboot`) para comprobar que todo vuelve solo, sin tocar nada.
+
+| Comprobación | Comando | Resultado |
+|---|---|---|
+| Arranque | `uptime -s` | `2026-10-16 17:46:04` (reinicio recién hecho) |
+| SSH con clave | `ssh samiabaco@192.168.56.102` (PC) | Entra sin contraseña; `Ubuntu 24.04.5 LTS`, kernel `6.8.0-147-generic` |
+| Root bloqueado | `ssh root@192.168.56.102` (PC) | `Permission denied (publickey)` |
+| Servicios | `systemctl is-active nginx docker ssh` | `active` · `active` · `active` |
+| Contenedores | `sudo docker ps` | `abaco-dev-web-1` y `abaco-pruebas-web-1` `Up About a minute`, en `127.0.0.1:3001` y `127.0.0.1:3002` (`restart: unless-stopped`) |
+| Datos | `sudo docker exec … cat /datos/prueba.txt` | `dato DEV` y `dato PRUEBAS`: sobreviven al reinicio y siguen separados |
+| Cortafuegos | `sudo ufw status` | `active`; 22/tcp y 80/tcp `ALLOW` desde `192.168.56.20` |
+| Sitios (PC) | `curl.exe … http://dev.abaco.test` y `http://pruebas.abaco.test` | `200` y `200` |
+
+Al entrar, Ubuntu avisa de `New release '26.04.1 LTS' available`: no se actualiza, el laboratorio se hace en
+24.04 LTS como pide el plan. Uso de disco: 19,5 % de 36,07 GB; memoria 7 %.
+
+Evidencias: `evidencias/dia4/27a-reboot-ssh-con-clave.png` · `27b-ssh-root-rechazado.png` ·
+`28-tras-reinicio-servicios-contenedores-datos-ufw.png` · `29-tras-reinicio-curl-dev-pruebas-200.png`.
