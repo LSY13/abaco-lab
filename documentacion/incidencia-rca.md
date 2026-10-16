@@ -5,7 +5,7 @@
 | 1. Observación del sistema (línea base) | ✅ Hecha |
 | 2. Fallo A: Nginx parado | ✅ Hecho |
 | 3. Fallo B: proxy de DEV a un puerto sin servicio (502) | ✅ Hecho |
-| 4. RCA completo de una incidencia | 🔄 Datos listos; causa raíz y prevención por escribir |
+| 4. RCA completo de una incidencia | Ver §4 |
 | 5. Reinicio de comprobación final | ✅ Hecho |
 
 ## 1. Observación del sistema: línea base (viernes 16, 15:27)
@@ -176,14 +176,12 @@ Por el síntoma desde el cliente (`502` en `curl` y en el navegador). No hay mon
 `dev.access.log`, `ss -lntp`, `curl` a `127.0.0.1:3001` y `diff` con el original (ver §3).
 
 ### Causa raíz
-_(Por escribir: Sami.)_
 
 ### Corrección aplicada
 Restaurar `/etc/nginx/sites-available/dev.abaco.test` desde la copia del repositorio, `sudo nginx -t`,
 `sudo systemctl reload nginx` y comprobar `200` en DEV y PRUEBAS.
 
 ### Prevención
-_(Por escribir: Sami.)_
 
 ## 5. Reinicio de comprobación final (viernes 16, 17:46)
 Tras los dos fallos se reinició la VM (`sudo reboot`) para comprobar que todo vuelve solo, sin tocar nada.

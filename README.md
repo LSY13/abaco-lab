@@ -14,7 +14,7 @@ PRUEBAS) detrás de Nginx, hacer y restaurar una copia de seguridad y diagnostic
 | Mar 13 | Instalar Ubuntu, SSH con clave y UFW | ✅ Hecho ([instalacion.md](documentacion/instalacion.md)) |
 | Mié 14 | Nginx: dos sitios y proxy inverso | ✅ Hecho ([despliegue.md](documentacion/despliegue.md)) · SSH reforzado (sin contraseña ni root) · snapshot `dia2-nginx-ok` |
 | Jue 15 | Docker Compose: DEV y PRUEBAS separados | ✅ Hecho ([despliegue.md](documentacion/despliegue.md), parte 2) · Docker oficial con `sudo docker` · Nginx delante de los contenedores · snapshot `dia3-docker-ok` |
-| Vie 16 | Copias, restauración, diagnóstico y RCA | ✅ Línea base · ✅ Copia restaurada y validada ([backup-restore.md](documentacion/backup-restore.md)) · ✅ Fallos A (Nginx parado) y B (502) ([incidencia-rca.md](documentacion/incidencia-rca.md)) · 🔄 RCA (falta causa raíz y prevención) · ✅ Reinicio de comprobación ([incidencia-rca.md](documentacion/incidencia-rca.md) §5) · ✅ Demo en vídeo · ✅ snapshot `dia4-final` |
+| Vie 16 | Copias, restauración, diagnóstico y RCA | ✅ Línea base · ✅ Copia restaurada y validada ([backup-restore.md](documentacion/backup-restore.md)) · ✅ Fallos A (Nginx parado) y B (502) ([incidencia-rca.md](documentacion/incidencia-rca.md)) · RCA ([incidencia-rca.md](documentacion/incidencia-rca.md) §4) · ✅ Reinicio de comprobación ([incidencia-rca.md](documentacion/incidencia-rca.md) §5) · ✅ Demo en vídeo · ✅ snapshot `dia4-final` |
 
 ## Requisitos
 | Elemento | Usado en este laboratorio |
@@ -124,11 +124,8 @@ Documentación oficial enlazada en el plan de formación:
   a interpretar errores y salidas, comprobó el estado de la VM por SSH (sin `sudo`) y redactó la parte técnica de
   la documentación (comandos, tablas y evidencias) a partir de mis capturas. Los comandos los ejecuté yo.
   Las secciones "Qué he aprendido", las dificultades y la causa raíz y prevención del RCA son mías.
-- Revisión de los tutores el viernes 16, que señaló huecos (config de PRUEBAS, DNS, README).
 
 ## Pendientes
-- RCA: causa raíz y prevención ([incidencia-rca.md](documentacion/incidencia-rca.md) §4).
-- "Qué he aprendido" de los días 3 y 4.
 - Opcional, no hecho: fallo de permisos o de Compose, `init: true` en Compose, automatizar copias.
 
 ## Estructura
