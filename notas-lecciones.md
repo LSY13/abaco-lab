@@ -281,6 +281,7 @@ Cosas que no pedía el PDF pero que aparecieron al mirar con detalle, con su evi
 | 4 | La cabecera HTTP `Date` va en GMT (15:32:25) y los logs de Nginx en CEST (17:32:25): misma hora, 2 h de diferencia | `dia4/23`, `dev.access.log` |
 | 4 | Con `dev.access.log` se mide la caída exacta del fallo B: 17:32:25 → 17:36:41 (~4 min, 2 peticiones fallidas) | `incidencia-rca.md` §4 |
 | 4 | Tras el reinicio final todo volvió solo (SSH, Nginx, Docker, contenedores, datos, UFW). Ubuntu ofrece `26.04.1 LTS`: no se actualiza, el plan pide 24.04 | `dia4/27a-29`, `incidencia-rca.md` §5 |
+| S2 | Una VM restaurada desde estado guardado da un `uptime -s` engañoso (11:28 de hoy) mientras los contenedores llevan `Up 2 days`: no hubo reinicio | `continuacion/01-02` |
 
 ### Errores y problemas del día 3
 | # | Qué pasó | Causa | Lección |
@@ -290,3 +291,20 @@ Cosas que no pedía el PDF pero que aparecieron al mirar con detalle, con su evi
 | 3 | `docker ps` → `permission denied … docker.sock` (provocado a propósito) | El socket es `root:docker` y samiabaco no está en el grupo `docker` | Es la barrera que queremos: usar `sudo docker` (ver lección 5) |
 | 4 | `ç: command not found` | Tecla suelta | Sin importancia; leer el error antes de seguir |
 | 5 | Anuncié que `FROM` saldría `CACHED` y salió `CACHED [2/3] WORKDIR` | `FROM` no se marca como `CACHED`; la señal de reutilización es que no hay descarga (`extracting`) y el tiempo baja | Comprobar la salida real en vez de lo esperado |
+
+## Continuación · Lunes 19 (semana 2)
+1. **Referencia antes de cambiar nada**: el PDF pide demostrar al final que DEV y PRUEBAS "siguen igual"; solo se
+   puede si antes se apunta cómo están (servicios, sitios activos, proyectos, imágenes, puertos, volúmenes, datos y
+   lo que ve el cliente: código **y** marcador). Queda en `continuacion/README.md` §1.
+2. **VM restaurada desde estado guardado**: `uptime -s` dio 11:28 de hoy, pero los contenedores marcaban
+   `Up 2 days`. Al restaurar, el reloj se pone en hora y el contador de tiempo encendido sigue donde estaba, así
+   que la hora de "arranque" calculada sale desplazada. No hubo reinicio. Evidencias `continuacion/01-02`.
+3. **Comprobar que lo nuevo no choca**: puerto libre (`ss -ltn`), nombre de proyecto libre (`compose ls -a`:
+   `-a` incluye proyectos parados, que siguen teniendo contenedores y volúmenes), imagen, sitio de Nginx y carpeta.
+   Si `abaco-ensayo` ya existiera, Compose reutilizaría sus recursos y se podrían pisar datos.
+
+### Errores y problemas de la continuación
+| # | Qué pasó | Causa | Lección |
+|---|---|---|---|
+| 1 | Tras pegar `ss -ltn \| grep -E ':301[12]' \|\| echo "…"` el prompt pasó a `>` y el siguiente comando no hizo nada | Al pegar quedó una comilla sin cerrar: `>` es el prompt de continuación de bash, que espera el cierre y toma todo lo escrito como texto | Si aparece `>`, **Ctrl+C** y repetir. Preferir comandos sin comillas (`ss -ltn | grep :30`)\| grep 301`) |
+| 2 | `ss -ltn \| grep 301` no devolvió nada, cuando se esperaba ver 3001 y 3002 | Error del filtro que propuse: "301" no está dentro de "3001" (3-0-0-1); solo encontraría 3010-3019. Por SSH se vio que 3001 y 3002 sí escuchan | Un `grep` vacío puede significar "no está" o "el filtro está mal": probar que encuentra lo que **sí** debe estar (`grep :30` → 3001 y 3002, y ningún 3011/3012) |
