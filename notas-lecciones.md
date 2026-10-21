@@ -283,6 +283,7 @@ Cosas que no pedía el PDF pero que aparecieron al mirar con detalle, con su evi
 | 4 | Tras el reinicio final todo volvió solo (SSH, Nginx, Docker, contenedores, datos, UFW). Ubuntu ofrece `26.04.1 LTS`: no se actualiza, el plan pide 24.04 | `dia4/27a-29`, `incidencia-rca.md` §5 |
 | S2 | Una VM restaurada desde estado guardado da un `uptime -s` engañoso (11:28 de hoy) mientras los contenedores llevan `Up 2 days`: no hubo reinicio | `continuacion/01-02` |
 | S2 | El repo de la VM seguía en `21ebdfd` (commit intermedio del jueves): el `git pull` del 19 oct trajo todo el viernes. Sin efecto en los servicios: entre ambos commits no cambia `docker/dev`, `docker/pruebas` ni sus bloques de Nginx, y los contenedores no leen el repo | `continuacion/07a` |
+| S2 | `docker ps -a` muestra `distracted_edison` (`hello-world`, del 15 oct): la línea base con `docker ps` sin `-a` no veía los contenedores parados. Para una foto completa, usar `-a` | `continuacion/31` |
 
 ### Errores y problemas del día 3
 | # | Qué pasó | Causa | Lección |
@@ -374,6 +375,25 @@ Cosas que no pedía el PDF pero que aparecieron al mirar con detalle, con su evi
     Caso B: misma carpeta y mismo `env -u`, cambiando solo `caso-b.env` → `.env`, pasa de salida `1` a `0`: la causa
     es el archivo elegido, no la carpeta ni el entorno. `config --quiet` valida sin imprimir. Evidencias `22-24`.
 29. **`$?`**: código de salida del último comando (0 = bien, distinto de 0 = error). Hay que mirarlo justo después.
+
+30. **El ID de la imagen es el digest del manifiesto**: `abaco-web:ensayo-1` tiene ID `85b495e1f10d`, el mismo comienzo
+    que `exporting manifest list sha256:85b495e1f10d…` del build del 19 oct (Captura 08).
+31. **Caso C, mismo compose con otro `-p`**: `--env-file caso-c.env -p abaco-comprobacion` creó red
+    `abaco-comprobacion_default`, volumen **`abaco-comprobacion_datos`** (nuevo, vacío) y contenedor
+    `abaco-comprobacion-web-1` en `127.0.0.1:3012`; con `--no-build` no construyó: usó la imagen `ensayo-1`. Misma
+    página (mismo marcador) pero `/datos/prueba.txt` no existe allí; en ENSAYO sigue `dato ENSAYO`. Evidencias `25-27b`.
+
+32. **Caso C resuelto**: mismos montajes pedidos para los dos contenedores → `abaco-ensayo_datos -> /datos` y
+    `abaco-comprobacion_datos -> /datos`. Cada `-p` tiene su volumen; el dato sigue en
+    `/var/lib/docker/volumes/abaco-ensayo_datos/_data/prueba.txt` (12 bytes = `dato ENSAYO` + salto de línea de `echo`).
+    Acceso sin tocarlo: `docker run --rm -v abaco-ensayo_datos:/datos:ro …` (`:ro` = solo lectura; `--rm` borra el
+    contenedor temporal al acabar). Evidencias `28-30`.
+33. **`Exited (137)`** al hacer `stop` de la comprobación: 137 = 128 + 9 (`SIGKILL`). Python es el PID 1 e ignora
+    `SIGTERM`, Docker espera los 10 s de gracia y lo mata: lo mismo que el `stop` de DEV del 16 oct (hallazgo día 4).
+34. **`exited(1)` en `compose ls` no es un código de salida**: el número entre paréntesis es cuántos contenedores
+    tiene el proyecto en ese estado (como `running(1)`). El código real del contenedor es el 137 de `docker ps -a`.
+35. **Contenedor `distracted_edison` (`hello-world`, `Exited (0)` hace 5 días)**: la prueba de la instalación de
+    Docker del 15 oct. No salía en la línea base porque `docker ps` sin `-a` solo enseña los que están en marcha.
 
 ### Errores y problemas de la continuación
 | # | Qué pasó | Causa | Lección |

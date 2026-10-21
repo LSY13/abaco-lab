@@ -112,3 +112,65 @@ contenedor. No se editó el Dockerfile, ni DEV/PRUEBAS, ni se subió ningún `.e
 
 Evidencias: [21](evidencias/21-caso-b-validacion-aislada.png) · [22](evidencias/22-caso-b-carpeta-y-entorno.png) ·
 [23](evidencias/23-caso-b-mismo-comando-con-env.png) · [24](evidencias/24-caso-b-validacion-normal.png).
+
+## Caso C · El archivo no aparece
+**Fecha:** miércoles 21 de octubre de 2026
+
+**Qué esperaba y qué ocurrió**
+Desde `~/abaco-lab/docker/ensayo/` preparé `caso-c.env` (`TAG=ensayo-1`, `PUERTO=3012`). Antes de arrancar comprobé
+que la imagen `abaco-web:ensayo-1` existía, que el 3012 estaba libre y que no había ningún proyecto ni volumen
+`abaco-comprobacion`. Validé y arranqué con el mismo `compose.yaml`
+(`sudo docker compose --env-file caso-c.env -p abaco-comprobacion up -d --no-build`). La página en
+`127.0.0.1:3012` es la misma que en ENSAYO (`ABACO ENSAYO ENTREGA A`), pero en su servicio web
+`cat /datos/prueba.txt` da `No such file or directory`; en ENSAYO sigue dando `dato ENSAYO`.
+
+**Dos hipótesis**
+1. Al arrancar la comprobación con otro nombre de proyecto, Compose ha creado un volumen nuevo y vacío, y lo ha
+   montado en `/datos`.
+2. Las dos ejecuciones usan el mismo volumen (`abaco-ensayo_datos`), pero en la comprobación está montado en otra
+   carpeta distinta de `/datos`, así que al buscar en `/datos/prueba.txt` no lo encuentro aunque el archivo exista.
+
+**Prueba elegida y motivo**
+Ejecuto el mismo comando de inspección de montajes para los dos contenedores, cambiando solo el nombre del
+contenedor, y comparo el nombre del volumen y la ruta de destino: volúmenes distintos en la misma ruta apoyan la
+hipótesis 1; el mismo volumen en rutas distintas, la 2.
+
+**Resultado observado**
+- `config` de la comprobación: `image: abaco-web:ensayo-1`, `host_ip: 127.0.0.1`, `published: "3012"`, red
+  `abaco-comprobacion_default` y volumen `abaco-comprobacion_datos`.
+- El `up` creó `Network abaco-comprobacion_default`, `Volume abaco-comprobacion_datos` y
+  `Container abaco-comprobacion-web-1` (sin construir: usó la imagen existente).
+- Montajes (mismo `docker inspect -f '{{range .Mounts}}{{.Name}} -> {{.Destination}}{{end}}'`, solo cambia el contenedor):
+  `abaco-ensayo-web-1` → `abaco-ensayo_datos -> /datos`; `abaco-comprobacion-web-1` → `abaco-comprobacion_datos -> /datos`.
+- Contenido de cada volumen en la VM (`docker volume inspect` → `/var/lib/docker/volumes/<volumen>/_data`):
+  `abaco-ensayo_datos` tiene `prueba.txt` (12 bytes, 19 oct 13:21); `abaco-comprobacion_datos` está vacío (creado
+  el 21 oct 13:17).
+
+**Qué cambié o descarté**
+
+**Cómo lo verifiqué**
+- Acceso al dato correcto sin borrarlo, sin escribir encima ni copiarlo: lectura desde su volumen original en solo
+  lectura, con un contenedor temporal: `sudo docker run --rm -v abaco-ensayo_datos:/datos:ro abaco-web:ensayo-1 cat
+  /datos/prueba.txt` → `dato ENSAYO`.
+- Cierre: `sudo docker compose --env-file caso-c.env -p abaco-comprobacion stop` (solo ese proyecto, sin borrar).
+  Recursos que quedan de la comprobación: proyecto `abaco-comprobacion` (`exited(1)`), contenedor
+  `abaco-comprobacion-web-1` (`Exited (137)`), volumen `abaco-comprobacion_datos` (vacío) y red
+  `abaco-comprobacion_default`.
+- Entornos anteriores intactos: `dato DEV`, `dato PRUEBAS` y `dato ENSAYO`; desde el PC `Abaco DEV`,
+  `Abaco PRUEBAS` y `ABACO ENSAYO ENTREGA A`; DEV y PRUEBAS siguen `Up 4 days`, ENSAYO `Up 2 days`.
+
+**Qué prevendría**
+
+**Fuente y ayuda recibida**
+- R2 · Docker Compose, nombre de proyecto (separa los recursos de cada ejecución).
+- R7 · Docker, volúmenes y persistencia (ciclo de vida, montaje y comprobación de los datos).
+- R10 · Docker Compose, arrancar y recrear (`up -d --no-build`).
+- Ayuda de IA (Claude): me explicó cómo se nombran y montan los volúmenes y me propuso posibles hipótesis, entre
+  las que elegí dos.
+
+**Siguiente paso**
+
+Evidencias: [25](evidencias/25-caso-c-estado-inicial.png) · [26](evidencias/26-caso-c-config-comprobacion.png) ·
+[27a](evidencias/27a-caso-c-up-ps.png) · [27b](evidencias/27b-caso-c-pagina-y-dato.png) · [28](evidencias/28-caso-c-montajes.png) ·
+[29](evidencias/29-caso-c-contenido-volumenes.png) · [30](evidencias/30-caso-c-lectura-solo-lectura.png) ·
+[31](evidencias/31-caso-c-stop-recursos.png) · [32](evidencias/32-caso-c-datos-intactos.png) · [33](evidencias/33-caso-c-paginas-intactas.png).
