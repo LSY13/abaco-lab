@@ -282,6 +282,7 @@ Cosas que no pedía el PDF pero que aparecieron al mirar con detalle, con su evi
 | 4 | Con `dev.access.log` se mide la caída exacta del fallo B: 17:32:25 → 17:36:41 (~4 min, 2 peticiones fallidas) | `incidencia-rca.md` §4 |
 | 4 | Tras el reinicio final todo volvió solo (SSH, Nginx, Docker, contenedores, datos, UFW). Ubuntu ofrece `26.04.1 LTS`: no se actualiza, el plan pide 24.04 | `dia4/27a-29`, `incidencia-rca.md` §5 |
 | S2 | Una VM restaurada desde estado guardado da un `uptime -s` engañoso (11:28 de hoy) mientras los contenedores llevan `Up 2 days`: no hubo reinicio | `continuacion/01-02` |
+| S2 | El repo de la VM seguía en `21ebdfd` (commit intermedio del jueves): el `git pull` del 19 oct trajo todo el viernes. Sin efecto en los servicios: entre ambos commits no cambia `docker/dev`, `docker/pruebas` ni sus bloques de Nginx, y los contenedores no leen el repo | `continuacion/07a` |
 
 ### Errores y problemas del día 3
 | # | Qué pasó | Causa | Lección |
@@ -303,8 +304,80 @@ Cosas que no pedía el PDF pero que aparecieron al mirar con detalle, con su evi
    `-a` incluye proyectos parados, que siguen teniendo contenedores y volúmenes), imagen, sitio de Nginx y carpeta.
    Si `abaco-ensayo` ya existiera, Compose reutilizaría sus recursos y se podrían pisar datos.
 
+4. **`compose config` en formato largo**: el puerto se ve campo a campo (`host_ip: 127.0.0.1`, `target: 8080`,
+   `published: "3011"`, `protocol: tcp`); `docker compose ps` lo resume como `127.0.0.1:3011->8080/tcp`. Misma información.
+5. **El `-p` separa todo**: con `-p abaco-ensayo` el `up` creó imagen, red `abaco-ensayo_default`, volumen
+   `abaco-ensayo_datos` y contenedor `abaco-ensayo-web-1` nuevos, sin tocar nada de DEV/PRUEBAS.
+6. **Caché de capas**: `CACHED [2/3] WORKDIR /web` en ENSAYO: el Dockerfile es idéntico al de DEV, así que reutiliza
+   esas capas y solo rehace `COPY index.html` (2,6 s).
+7. **Comprobar el estado inicial antes de escribir**: `/datos` estaba vacío, así que `dato ENSAYO` es nuevo y no
+   un resto de otra ejecución (lo pide el PDF).
+8. **Hora del contenedor en UTC**: `/datos` marcaba 11:16 cuando en la VM eran las 13:16 CEST (UTC+2). Misma
+   hora; igual que el viernes entre la cabecera `Date` (GMT) y los logs de Nginx (CEST).
+9. **Copia de Nginx con huella**: `tar` guarda `sites-available` (archivos reales) y `sites-enabled` (enlaces, como
+   enlaces), por eso cada sitio sale dos veces en `tar -tzf`. La huella SHA-256 igual en VM (`sha256sum`, minúsculas)
+   y PC (`Get-FileHash`, mayúsculas) prueba que la copia es idéntica. Snapshot ≠ copia: vive dentro de VirtualBox.
+
+10. **Tamaño de un enlace simbólico**: en `ls -l` de `sites-enabled` salen 34, 41, 44 y 45: es el número de caracteres
+    de la ruta a la que apunta (`/etc/nginx/sites-available/` = 27 + `default` 7 = 34, + `ensayo.abaco.test` 17 = 44…).
+    El enlace solo guarda la ruta; el contenido está en `sites-available`. Evidencia `continuacion/10`.
+
+11. **Log propio y tamaño del cuerpo**: la petición a ENSAYO quedó en `ensayo.access.log` (no en el de DEV), así que
+    la atendió el bloque nuevo. `::1` = entró por IPv6 (`localhost` prueba primero `::1`). `244` = bytes del cuerpo,
+    exactamente lo que ocupa `docker/ensayo/index.html`: un 200 con otro tamaño delata otra página. Evidencia `11`.
+12. **Timeout y no refused en `192.168.56.102:3011`**: nadie escucha en esa IP (Docker publica en `127.0.0.1`), lo que
+    daría *refused* al instante, pero UFW descarta el paquete sin contestar y el PC espera los 5 s de `--max-time`.
+    Dos barreras; desde fuera se ve la de UFW. Evidencia `12b`.
+13. **`Select-String` no distingue mayúsculas** (`grep` sí): buscando `ABACO` sacó también `<title>Abaco ENSAYO` y el
+    `<p>` con `ensayo.abaco.test`. Para buscar el marcador exacto en PowerShell: `-CaseSensitive`.
+
+14. **Punto final en el nombre**: el navegador pidió `ensayo.abaco.test.` (con punto: nombre completo de DNS). Nginx
+    quita ese punto antes de comparar con `server_name`, por eso lo atendió ENSAYO (`ensayo.access.log`, referer
+    `http://ensayo.abaco.test./`). Evidencia `13`.
+15. **207 frente a 244 bytes, misma página**: `nginx.conf` tiene `gzip on`; el navegador manda `Accept-Encoding: gzip`
+    y recibe la página comprimida (207); `curl` sin esa cabecera la recibe tal cual (244). Comprobado con
+    `curl -H "Accept-Encoding: gzip"` → `Content-Encoding: gzip`, 207. El tamaño delata otra página solo comparando
+    con el mismo cliente. (Esa prueba la hizo Claude: línea `127.0.0.1 … 14:02:38 … 207 curl/8.5.0` en el log.)
+16. **`Copy-Item` conserva la fecha**: la copia del hosts sale con 14 oct 14:28 (cuando se añadieron dev y pruebas).
+17. **DEV y PRUEBAS intactos se demuestran con `Up 2 days`**: mismas imágenes y puertos, sin recrear; más página y dato.
+
+18. **Caso A, comparación que cambia una sola cosa**: misma IP (`Connected to 192.168.56.102 port 80` en las dos),
+    solo cambia el `Host:` (`192.168.56.102` frente a `ensayo.abaco.test` con `--resolve`): 615 bytes `Welcome to nginx!`
+    frente a 244 bytes con el marcador. `curl -v`: `*` = lo que hace curl, `>` = lo que envía, `<` = lo que recibe.
+19. **Las cabeceras delatan quién sirve**: la página por IP trae `ETag` y `Accept-Ranges` (Nginx sirviendo un archivo
+    del disco); la de ENSAYO no (la genera el `http.server` de Python del contenedor y Nginx solo la reenvía).
+20. **`Last-Modified` de la página por IP = 14 oct 11:30:41 GMT** (13:30 CEST), la hora del enlace `default` de la
+    Captura 01: es la página que trajo Nginx al instalarse.
+21. **El `ETag` de Nginx es tamaño y fecha en hexadecimal**: `"6acf67e1-267"` → `0x267` = 615 bytes y
+    `0x6acf67e1` = 1791977441 = 14 oct 2026 11:30:41 UTC.
+22. **`--resolve` usa la caché DNS interna de curl** (`Added ensayo.abaco.test:80:192.168.56.102 to DNS cache`):
+    la caché nombre→IP, distinta de una caché HTTP que guarda respuestas (corrección de la hipótesis 2).
+23. **Sin variables de proxy** (`Get-ChildItem Env:*proxy*` vacío) y `--noproxy "*"` da lo mismo (`200 615`):
+    un resultado vacío también es una evidencia. Sin `Via:`/`Age:`/`X-Cache`.
+
+24. **`default_server`**: con varios sitios en el mismo `IP:80`, Nginx elige por la cabecera `Host`; si ningún
+    `server_name` coincide (`Host: 192.168.56.102`), contesta el bloque con `listen 80 default_server` (`default`,
+    `server_name _;`, `root /var/www/html` → `index.nginx-debian.html`, 615 bytes). Un `200` dice que Nginx contestó
+    sin error, no que contestara el sitio correcto. Logs: petición por IP en `access.log`, por nombre en
+    `ensayo.access.log`. Evidencias `19-20`. (En `ensayo.access.log` hay 2 pruebas de Claude: 19 oct 14:02:38 y 21:03:45.)
+
+25. **Caso B, quién emite el error**: `error while interpolating services.web.image: required variable TAG is missing
+    a value: falta TAG en .env` lo da **Docker Compose** al sustituir variables (interpolación), antes de crear nada.
+    El texto "falta TAG en .env" es nuestro: sale de `${TAG:?falta TAG en .env}` en `compose.yaml`. Código de salida `1`.
+26. **El mensaje dice `.env`, pero el archivo usado era `caso-b.env`**: el texto es fijo y puede despistar; con
+    `--env-file` se elige el archivo y `.env` no se lee. Un mensaje de error describe lo que escribió quien lo programó.
+27. **Demostrar que no se tocó un contenedor**: mismo `Id` y `StartedAt` (`2b463aca…`, 19 oct 11:16:57 UTC = 13:16:57
+    CEST) antes, entre y después de dos validaciones fallidas. `Sorry, try again` = contraseña de sudo mal tecleada.
+
+28. **Cómo resuelve Compose las variables**: primero el entorno del proceso; luego un archivo: el `.env` de la carpeta
+    del proyecto o, con `--env-file X`, **solo** X (sustituye a `.env`, no se suma). `${VAR:?msg}` para todo si falta.
+    Caso B: misma carpeta y mismo `env -u`, cambiando solo `caso-b.env` → `.env`, pasa de salida `1` a `0`: la causa
+    es el archivo elegido, no la carpeta ni el entorno. `config --quiet` valida sin imprimir. Evidencias `22-24`.
+29. **`$?`**: código de salida del último comando (0 = bien, distinto de 0 = error). Hay que mirarlo justo después.
+
 ### Errores y problemas de la continuación
 | # | Qué pasó | Causa | Lección |
 |---|---|---|---|
 | 1 | Tras pegar `ss -ltn \| grep -E ':301[12]' \|\| echo "…"` el prompt pasó a `>` y el siguiente comando no hizo nada | Al pegar quedó una comilla sin cerrar: `>` es el prompt de continuación de bash, que espera el cierre y toma todo lo escrito como texto | Si aparece `>`, **Ctrl+C** y repetir. Preferir comandos sin comillas (`ss -ltn | grep :30`)\| grep 301`) |
 | 2 | `ss -ltn \| grep 301` no devolvió nada, cuando se esperaba ver 3001 y 3002 | Error del filtro que propuse: "301" no está dentro de "3001" (3-0-0-1); solo encontraría 3010-3019. Por SSH se vio que 3001 y 3002 sí escuchan | Un `grep` vacío puede significar "no está" o "el filtro está mal": probar que encuentra lo que **sí** debe estar (`grep :30` → 3001 y 3002, y ningún 3011/3012) |
+| 3 | Tras suspender el PC, `ssh samiabaco@192.168.56.102` → `The authenticity of host … can't be established` | El comando se lanzó **dentro de la VM** (prompt `samiabaco@abacolab`): la sesión no se había cortado y la VM se conectaba a sí misma; su `known_hosts` no tiene su propia huella (el del PC sí, desde el día 1). Se canceló con Ctrl+C sin guardar nada | Mirar el prompt antes de pegar. La huella mostrada (`SHA256:L29dO0N5…`) es la clave de la propia VM, la misma que conoce el PC |

@@ -86,3 +86,41 @@ Evidencias: [05a](evidencias/05a-copia-nginx-vm-hash.png) · [05b](evidencias/05
 | `docker/ensayo/.env.example` | `docker/dev/.env.example` | `TAG=ensayo-1`, `PUERTO=3011`; sin secretos |
 | `docker/ensayo/index.html` | `docker/dev/index.html` | Marcador `ABACO ENSAYO ENTREGA A` |
 | `nginx/ensayo.abaco.test` | `nginx/dev.abaco.test` | `server_name ensayo.abaco.test`, logs `ensayo.*.log`, `proxy_pass` a `127.0.0.1:3011` |
+
+### Contenedor y dato (VM, `~/abaco-lab/docker/ensayo/`)
+| Paso | Comando | Resultado |
+|---|---|---|
+| Traer los archivos | `git pull` | `21ebdfd..66ccd87` (fast-forward); sin cambios en `docker/dev`, `docker/pruebas` ni sus bloques de Nginx |
+| `.env` local | `cp .env.example .env` | `TAG=ensayo-1`, `PUERTO=3011` (fuera de Git) |
+| Validar sin crear nada | `sudo docker compose -p abaco-ensayo config` | `image: abaco-web:ensayo-1`; `host_ip: 127.0.0.1`, `published: "3011"`, `target: 8080`; red `abaco-ensayo_default`; volumen `abaco-ensayo_datos` |
+| Construir y arrancar | `sudo docker compose -p abaco-ensayo up -d --build` | Imagen, red, volumen y contenedor `abaco-ensayo-web-1` nuevos |
+| Contenedor | `curl -s http://127.0.0.1:3011/ \| grep ABACO` | `<h1>ABACO ENSAYO ENTREGA A</h1>` |
+| Estado inicial del volumen | `sudo docker exec abaco-ensayo-web-1 ls -la /datos` | Vacío: el dato no venía de antes |
+| Dato propio | `echo "dato ENSAYO" \| sudo docker exec -i abaco-ensayo-web-1 tee /datos/prueba.txt` | `cat /datos/prueba.txt` → `dato ENSAYO` |
+
+Evidencias: [07a](evidencias/07a-git-pull-vm.png) · [07b](evidencias/07b-env-compose-config-ensayo.png) ·
+[08](evidencias/08-up-ps-curl-ensayo.png) · [09](evidencias/09-dato-ensayo-volumen.png).
+
+### Nginx y acceso desde el PC
+| Paso | Comando | Resultado |
+|---|---|---|
+| Activar el sitio | `sudo cp ~/abaco-lab/nginx/ensayo.abaco.test /etc/nginx/sites-available/` y `sudo ln -s …/sites-available/ensayo.abaco.test /etc/nginx/sites-enabled/` | Cuatro sitios en `sites-enabled` |
+| Validar y aplicar | `sudo nginx -t` → `sudo systemctl reload nginx` | `test is successful`; recarga sin cortar DEV ni PRUEBAS |
+| Nginx desde la VM | `curl -s -i -H "Host: ensayo.abaco.test" http://localhost/` | `200` + marcador; registrado en `ensayo.access.log` (`200 244`) |
+| Nombre en el PC | Copia `hosts-antes-ensayo` en `abaco-entrega\backups\continuacion\` y línea `192.168.56.102  ensayo.abaco.test` en `hosts` | `diff` con la copia: solo esa línea nueva |
+| Desde el PC | `curl.exe -s -i http://ensayo.abaco.test` y navegador | `200` + `ABACO ENSAYO ENTREGA A` |
+| Aislamiento | `curl.exe --max-time 5 http://192.168.56.102:3011/` | `Connection timed out`: 3011 solo en `127.0.0.1` y UFW descarta |
+
+### DEV y PRUEBAS siguen igual
+| | DEV | PRUEBAS |
+|---|---|---|
+| Página desde el PC | `200` · `<h1>Abaco DEV</h1>` | `200` · `<h1>Abaco PRUEBAS</h1>` |
+| Contenedor | `abaco-web:dev-2`, `127.0.0.1:3001`, `Up 2 days` (no recreado) | `abaco-web:pruebas-1`, `127.0.0.1:3002`, `Up 2 days` |
+| Dato | `dato DEV` | `dato PRUEBAS` |
+
+Punto de vuelta con ENSAYO funcionando: snapshot `ensayo-ok`.
+
+Evidencias: [10](evidencias/10-nginx-enlace-ensayo-nginx-t.png) · [11](evidencias/11-reload-curl-host-log-ensayo.png) ·
+[12a](evidencias/12a-hosts-pc-ensayo.png) · [12b](evidencias/12b-pc-curl-ensayo-3011-timeout.png) ·
+[13](evidencias/13-navegador-ensayo.png) · [14a](evidencias/14a-pc-dev-pruebas-siguen-igual.png) ·
+[14b](evidencias/14b-vm-contenedores-datos-siguen-igual.png) · [15](evidencias/15-snapshot-ensayo-ok.png).
