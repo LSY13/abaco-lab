@@ -15,6 +15,7 @@ PRUEBAS) detrás de Nginx, hacer y restaurar una copia de seguridad y diagnostic
 | Mié 14 | Nginx: dos sitios y proxy inverso | ✅ Hecho ([despliegue.md](documentacion/despliegue.md)) · SSH reforzado (sin contraseña ni root) · snapshot `dia2-nginx-ok` |
 | Jue 15 | Docker Compose: DEV y PRUEBAS separados | ✅ Hecho ([despliegue.md](documentacion/despliegue.md), parte 2) · Docker oficial con `sudo docker` · Nginx delante de los contenedores · snapshot `dia3-docker-ok` |
 | Vie 16 | Copias, restauración, diagnóstico y RCA | ✅ Línea base · ✅ Copia restaurada y validada ([backup-restore.md](documentacion/backup-restore.md)) · ✅ Fallos A (Nginx parado) y B (502) ([incidencia-rca.md](documentacion/incidencia-rca.md)) · RCA ([incidencia-rca.md](documentacion/incidencia-rca.md) §4) · ✅ Reinicio de comprobación ([incidencia-rca.md](documentacion/incidencia-rca.md) §5) · ✅ Demo en vídeo · ✅ snapshot `dia4-final` |
+| 19-23 oct | Continuación: entorno ENSAYO, casos A-C y mejora de comprobación | ✅ ENSAYO (`ensayo.abaco.test`, `127.0.0.1:3011`, marcador y dato propios) · ✅ Casos A, B y C con pruebas · ✅ `comprobar-sitio.ps1` · snapshot `ensayo-ok` · todo en [continuacion/](continuacion/README.md) |
 
 ## Requisitos
 | Elemento | Usado en este laboratorio |
