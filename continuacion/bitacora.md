@@ -174,3 +174,38 @@ Evidencias: [25](evidencias/25-caso-c-estado-inicial.png) · [26](evidencias/26-
 [27a](evidencias/27a-caso-c-up-ps.png) · [27b](evidencias/27b-caso-c-pagina-y-dato.png) · [28](evidencias/28-caso-c-montajes.png) ·
 [29](evidencias/29-caso-c-contenido-volumenes.png) · [30](evidencias/30-caso-c-lectura-solo-lectura.png) ·
 [31](evidencias/31-caso-c-stop-recursos.png) · [32](evidencias/32-caso-c-datos-intactos.png) · [33](evidencias/33-caso-c-paginas-intactas.png).
+
+## Mejora · Comprobar que un sitio es el correcto, no solo que responde
+**Fecha:** jueves 22 de octubre de 2026
+
+**Qué es:** [`comprobar-sitio.ps1`](comprobar-sitio.ps1), un script manual de solo lectura para el PowerShell del
+PC. Hace una petición GET sin proxy y con 5 s de límite, y comprueba el código HTTP **y** el marcador exacto de la
+página (distinguiendo mayúsculas). Muestra a qué IP se conectó, el tamaño y el título, y termina en OK (salida 0)
+o en FALLO con el motivo (salida 1): `200` sin marcador, sin respuesta (`000`) u otro código.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\comprobar-sitio.ps1 -Url http://ensayo.abaco.test/ -Marcador "ABACO ENSAYO ENTREGA A"
+```
+`-ExecutionPolicy Bypass` permite el script solo en esa ejecución, sin cambiar la configuración de Windows.
+
+**Qué problema evita y sobre qué entorno actúa**
+
+**Pruebas** (desde otra sesión de PowerShell: PID 24716; la habitual era la 18604)
+| Petición | Código | Tamaño | Título | Marcador | Resultado |
+|---|---|---|---|---|---|
+| `http://ensayo.abaco.test/` | 200 | 244 | `Abaco ENSAYO` | encontrado | **OK** |
+| `http://192.168.56.102/` (caso A) | 200 | 615 | `Welcome to nginx!` | NO encontrado | **FALLO**: 200 pero no es la página esperada |
+| `http://dev.abaco.test/` con `"Abaco DEV"` | 200 | 310 | `Abaco DEV` | encontrado | **OK** |
+| `http://192.168.56.102:3011/` | 000 | 0 | (sin título) | NO encontrado | **FALLO**: sin respuesta |
+
+Ninguna prueba cambió configuración ni datos: solo peticiones GET.
+
+**Límites**
+
+**Fuente y ayuda recibida**
+- R6 · curl (`-w`, `--max-time`, `--noproxy`).
+- Ayuda de IA (Claude): escribió el script a partir de lo aprendido en los casos (marcador exacto, `--noproxy`,
+  tamaño e IP) y lo probó antes de dármelo; yo lo ejecuté desde otra sesión en los casos bueno y malo.
+
+Evidencias: [34a](evidencias/34a-mejora-otra-sesion-ok-y-fallo.png) ·
+[34b](evidencias/34b-mejora-pid-sesion-original.png) · [35](evidencias/35-mejora-dev-ok-y-3011-sin-respuesta.png).

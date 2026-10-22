@@ -124,3 +124,42 @@ Evidencias: [10](evidencias/10-nginx-enlace-ensayo-nginx-t.png) · [11](evidenci
 [12a](evidencias/12a-hosts-pc-ensayo.png) · [12b](evidencias/12b-pc-curl-ensayo-3011-timeout.png) ·
 [13](evidencias/13-navegador-ensayo.png) · [14a](evidencias/14a-pc-dev-pruebas-siguen-igual.png) ·
 [14b](evidencias/14b-vm-contenedores-datos-siguen-igual.png) · [15](evidencias/15-snapshot-ensayo-ok.png).
+
+## 4. Cómo abrir y comprobar ENSAYO
+**Abrir**
+- VM: `cd ~/abaco-lab/docker/ensayo`, `.env` copiado de `.env.example` y
+  `sudo docker compose -p abaco-ensayo up -d` (sirve en `127.0.0.1:3011`, detrás de Nginx).
+- PC: `hosts` con `192.168.56.102  ensayo.abaco.test` y navegador en `http://ensayo.abaco.test`; sin tocar el
+  `hosts`, `curl.exe --resolve ensayo.abaco.test:80:192.168.56.102 http://ensayo.abaco.test/`.
+
+**Comprobar** (algo más que un `200`)
+- PC, página correcta: `powershell -ExecutionPolicy Bypass -File .\comprobar-sitio.ps1 -Url http://ensayo.abaco.test/ -Marcador "ABACO ENSAYO ENTREGA A"`
+  → `RESULTADO: OK`. Ver la [mejora en la bitácora](bitacora.md#mejora--comprobar-que-un-sitio-es-el-correcto-no-solo-que-responde).
+- VM, dato propio: `sudo docker exec abaco-ensayo-web-1 cat /datos/prueba.txt` → `dato ENSAYO`.
+
+## 5. Casos investigados
+Detalle, pruebas y evidencias en [bitacora.md](bitacora.md).
+| Caso | Síntoma | Causa comprobada |
+|---|---|---|
+| A | `200` sin `ABACO ENSAYO ENTREGA A` al pedir por la IP | Con `Host: 192.168.56.102` ningún `server_name` coincide y contesta el bloque `default_server` (página de Nginx, 615 bytes) |
+| B | `falta TAG en .env` al validar | `--env-file caso-b.env` usa solo ese archivo, que no tiene `TAG`; el `.env` no se lee. Ningún contenedor cambió |
+| C | Misma página en `127.0.0.1:3012` sin `/datos/prueba.txt` | Otro nombre de proyecto crea su propio volumen vacío (`abaco-comprobacion_datos`); el dato sigue en `abaco-ensayo_datos` |
+
+## 6. Estado
+| Comprobación | Estado |
+|---|---|
+| ENSAYO con su marcador y su dato | ✅ `200` + `ABACO ENSAYO ENTREGA A` y `dato ENSAYO` |
+| Casos A, B y C explicados con pruebas | ✅ Pruebas y evidencias 16-33 |
+| La mejora distingue correcto de incorrecto | ✅ OK y FALLO, probada desde otra sesión (evidencias 34-35) |
+| DEV y PRUEBAS conservan página y datos | ✅ Comprobado tras ENSAYO y tras el caso C |
+| `.env` y copias locales fuera de Git | ✅ `caso-b.env`, `caso-c.env` y `.env` ignorados por `*.env` |
+
+Recursos que quedan del caso C, parados y sin borrar: proyecto `abaco-comprobacion` (contenedor
+`abaco-comprobacion-web-1` `Exited (137)`), volumen `abaco-comprobacion_datos` (vacío) y red
+`abaco-comprobacion_default`.
+
+## 7. Pendientes
+- Textos propios: "Qué he aprendido" del 15 oct en `documentacion/despliegue.md`, causa raíz y prevención en
+  `documentacion/incidencia-rca.md` §4, y la columna "Qué demuestra si sale bien" del mapa (§2).
+- Bitácora: "Qué cambié o descarté", "Qué prevendría" y "Siguiente paso" de los casos A, B y C, y "Qué problema
+  evita" y "Límites" de la mejora.

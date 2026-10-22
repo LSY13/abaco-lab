@@ -395,6 +395,12 @@ Cosas que no pedía el PDF pero que aparecieron al mirar con detalle, con su evi
 35. **Contenedor `distracted_edison` (`hello-world`, `Exited (0)` hace 5 días)**: la prueba de la instalación de
     Docker del 15 oct. No salía en la línea base porque `docker ps` sin `-a` solo enseña los que están en marcha.
 
+36. **La mejora (`continuacion/comprobar-sitio.ps1`)**: `curl.exe -w "%{http_code} %{size_download} %{remote_ip}"`
+    añade al final código, bytes e IP; `.Contains()` busca el marcador exacto (distingue mayúsculas). OK solo si
+    `200` **y** marcador. Probado desde otra sesión (`$PID` 24716 frente a 18604): ENSAYO OK, IP FALLO (`200` sin
+    marcador, 615 bytes), DEV OK (310 bytes: su página tiene la línea de la versión 2), 3011 FALLO (`000`, "Conectó"
+    vacío: no llegó a conectar). `-ExecutionPolicy Bypass` permite el script solo en esa ejecución.
+
 ### Errores y problemas de la continuación
 | # | Qué pasó | Causa | Lección |
 |---|---|---|---|
