@@ -60,13 +60,13 @@ Los puertos 30xx solo escuchan en `127.0.0.1` de la VM: desde el PC solo se entr
 
 | Tramo | Comprobación | Dónde se ejecuta | Qué demuestra si sale bien |
 |---|---|---|---|
-| PC → Nginx | `curl.exe -i http://ensayo.abaco.test` (o con `--resolve`) | PC (PowerShell) | |
-| Nombre → IP | `Select-String abaco C:\Windows\System32\drivers\etc\hosts` | PC (PowerShell) | |
-| Nginx | `sudo nginx -t` y `/var/log/nginx/ensayo.access.log` | VM | |
-| Nginx → contenedor | `curl -i http://127.0.0.1:3011/` | VM | |
-| Contenedor | `sudo docker compose -p abaco-ensayo ps` | VM | |
-| Volumen | `sudo docker exec abaco-ensayo-web-1 cat /datos/prueba.txt` | Dentro del contenedor | |
-| Aislamiento | `curl.exe --max-time 5 http://192.168.56.102:3011/` | PC (PowerShell) | |
+| PC → Nginx | `curl.exe -i http://ensayo.abaco.test` (o con `--resolve`) | PC (PowerShell) | Desde el PC se llega a Nginx por nombre y contesta el sitio de ENSAYO: código 200 **y** el marcador `ABACO ENSAYO ENTREGA A`. |
+| Nombre → IP | `Select-String abaco C:\Windows\System32\drivers\etc\hosts` | PC (PowerShell) | El PC traduce `ensayo.abaco.test` a la IP de la VM (192.168.56.102), así que la petición va a mi VM y no a otro equipo. |
+| Nginx | `sudo nginx -t` y `/var/log/nginx/ensayo.access.log` | VM | La configuración de Nginx es válida, y la petición la atendió el bloque de ENSAYO (aparece en su propio log, no en el del sitio por defecto). |
+| Nginx → contenedor | `curl -i http://127.0.0.1:3011/` | VM | El contenedor responde en el puerto al que Nginx reenvía (`proxy_pass`); si esto falla, Nginx daría 502. |
+| Contenedor | `sudo docker compose -p abaco-ensayo ps` | VM | El contenedor de ENSAYO está en marcha (`Up`) y publica `127.0.0.1:3011->8080`, solo en local. |
+| Volumen | `sudo docker exec abaco-ensayo-web-1 cat /datos/prueba.txt` | Dentro del contenedor | El volumen `abaco-ensayo_datos` está montado en `/datos` y conserva el dato (`dato ENSAYO`). |
+| Aislamiento | `curl.exe --max-time 5 http://192.168.56.102:3011/` | PC (PowerShell) | Aquí "salir bien" es **no** tener respuesta (timeout): el puerto 3011 no es accesible desde fuera y solo se entra por Nginx. |
 
 ## 3. ENSAYO
 ### Punto de vuelta antes de cambiar Nginx
@@ -159,7 +159,7 @@ Recursos que quedan del caso C, parados y sin borrar: proyecto `abaco-comprobaci
 `abaco-comprobacion_default`.
 
 ## 7. Pendientes
-- Textos propios: "Qué he aprendido" del 15 oct en `documentacion/despliegue.md`, causa raíz y prevención en
-  `documentacion/incidencia-rca.md` §4, y la columna "Qué demuestra si sale bien" del mapa (§2).
-- Bitácora: "Qué cambié o descarté", "Qué prevendría" y "Siguiente paso" de los casos A, B y C, y "Qué problema
-  evita" y "Límites" de la mejora.
+- Decidir con el tutor si se borran los recursos que quedan del caso C (§6). No se borraron porque la tarea no lo
+  permite.
+- No hay monitorización que avise sola: `comprobar-sitio.ps1` se ejecuta a mano (ver límites en la
+  [bitácora](bitacora.md)).

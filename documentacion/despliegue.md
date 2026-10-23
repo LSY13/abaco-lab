@@ -479,4 +479,23 @@ oficial (sudo docker), abaco-dev 3001 y abaco-pruebas 3002 en 127.0.0.1, Nginx d
 Antes de copias." (el `*` marca el estado actual).
 
 ### 12. Qué he aprendido
-Apartado de aprendizajes del día 3.
+
+**Imagen ≠ contenedor**
+La imagen es la plantilla de solo lectura y el contenedor es una copia en marcha de esa imagen. De una imagen pueden
+salir muchos contenedores. `docker images` lista las imágenes y `docker ps -a` los contenedores, también los parados.
+
+**Dockerfile ≠ compose.yaml**
+El Dockerfile dice qué hay dentro de la imagen (base, archivos, programa). El `compose.yaml` dice cómo se ejecuta en
+esta máquina (puerto, volumen, reinicio). La misma imagen puede arrancar con otro puerto.
+
+**Nombre de proyecto (`-p`)**
+Compose pone el nombre del proyecto delante de todo (`abaco-dev_datos`, `abaco-dev-web-1`). Si no se indica, usa el
+nombre de la carpeta y crea otro volumen vacío, así que hay que ponerlo siempre.
+
+**`sudo docker` y no el grupo `docker`**
+Estar en el grupo `docker` es como ser root sin contraseña, porque un contenedor puede montar todo el disco. Con
+`sudo` se pide contraseña y queda registrado.
+
+**Un 200 no basta**
+Por un error con `curl` respondió la página por defecto de Nginx con 200. Hay que mirar qué respondió (tamaño o
+contenido), no solo el código.

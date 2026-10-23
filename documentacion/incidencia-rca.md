@@ -176,12 +176,29 @@ Por el síntoma desde el cliente (`502` en `curl` y en el navegador). No hay mon
 `dev.access.log`, `ss -lntp`, `curl` a `127.0.0.1:3001` y `diff` con el original (ver §3).
 
 ### Causa raíz
+**Hechos comprobados:** el bloque `dev.abaco.test` tenía `proxy_pass http://127.0.0.1:3009/`. En el 3009 no escucha
+nada (`ss -lntp`), y Nginx lo registra en `dev.error.log` como `connect() failed (111: Connection refused) …
+upstream: "http://127.0.0.1:3009/"`. El contenedor de DEV seguía bien en el 3001 (`curl 127.0.0.1:3001` → 200). Al
+restaurar el `proxy_pass` original volvió el 200.
+
+**Causa:** un cambio de configuración apuntó el proxy a un puerto sin servicio. Nginx funcionaba, pero no tenía a
+quién pasar la petición, y por eso devolvía 502 (Bad Gateway: el fallo está detrás de Nginx, no en Nginx).
+
+**Por qué no se detectó antes de aplicar:** `nginx -t` solo comprueba que la sintaxis es correcta. No comprueba que
+el destino del `proxy_pass` exista ni responda. El cambio pasó la validación y se aplicó con `reload`.
 
 ### Corrección aplicada
 Restaurar `/etc/nginx/sites-available/dev.abaco.test` desde la copia del repositorio, `sudo nginx -t`,
 `sudo systemctl reload nginx` y comprobar `200` en DEV y PRUEBAS.
 
 ### Prevención
+- Antes del `reload`, comprobar que el puerto de destino tiene servicio (`ss -ltn` o `curl 127.0.0.1:<puerto>` desde
+  la VM).
+- Después del `reload`, comprobar el sitio desde el PC: código 200 **y** marcador (con `comprobar-sitio.ps1`).
+- Guardar una copia del bloque antes de cambiarlo (o tenerlo en el repo) para poder volver atrás rápido, como se hizo
+  aquí con `diff` y restauración.
+- Pendiente de comprobar: no hay monitorización que avise sola. El 502 se detectó solo porque alguien hizo la
+  petición.
 
 ## 5. Reinicio de comprobación final (viernes 16, 17:46)
 Tras los dos fallos se reinició la VM (`sudo reboot`) para comprobar que todo vuelve solo, sin tocar nada.

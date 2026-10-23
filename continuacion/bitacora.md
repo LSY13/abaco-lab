@@ -37,6 +37,9 @@ IP tal cual) y otra con `ensayo.abaco.test` mediante `--resolve`.
   `/var/www/html/` solo está `index.nginx-debian.html`, 615 bytes, 14 oct 13:30 (instalación de Nginx).
 
 **Qué cambié o descarté**
+Descarté las dos hipótesis: la petición llegó a mi VM y no había proxy. No cambié configuración; la página
+correcta sale al pedir por nombre, porque Nginx elige el sitio por la cabecera Host. Al pedir por IP, el Host es la
+IP, no coincide con ningún server_name y contesta el sitio por defecto (`default_server`), que también da 200.
 
 **Cómo lo verifiqué**
 Comparando dos peticiones que solo se diferencian en el nombre pedido, y comprobando en la VM qué log registró
@@ -45,6 +48,7 @@ cada una y qué bloque de Nginx tiene `default_server`. La petición que cierra 
 configuración.
 
 **Qué prevendría**
+Comprobar siempre el código y también el marcador, y pedir por nombre en vez de por IP.
 
 **Fuente y ayuda recibida**
 - R5 · Nginx, selección del sitio por nombre (cómo se elige un `server` y qué pasa si el nombre no coincide).
@@ -53,6 +57,7 @@ configuración.
   guarda respuestas, no "direcciones": la caché nombre→IP es la DNS) y me dio los comandos de comparación.
 
 **Siguiente paso**
+Automatizar esa comprobación con un script (la mejora del Hito 4).
 
 Evidencias: [16a](evidencias/16a-caso-a-curl-ip.png) · [16b](evidencias/16b-caso-a-curl-resolve-nombre.png) ·
 [17](evidencias/17-caso-a-marcador-y-pagina-ip.png) · [18](evidencias/18-caso-a-sin-proxy.png) ·
@@ -92,6 +97,12 @@ el problema, porque no han cambiado.
   `host_ip: 127.0.0.1`, `published: "3011"`) y código de salida `0`.
 
 **Qué cambié o descarté**
+Descarté las dos hipótesis. La carpeta era la correcta (`docker/ensayo/`) y la terminal no tenía ningún TAG; aun así,
+con el mismo comando y el mismo `env -u` funcionó en cuanto elegí `.env`. La causa es el archivo: `--env-file
+caso-b.env` sustituye al `.env` (no se suman), y `caso-b.env` no tiene TAG. Compose se para al interpolar, antes de
+tocar ningún contenedor. El mensaje dice "falta TAG en .env" porque ese texto lo personalizamos nosotros en el
+`compose.yaml` (`${TAG:?falta TAG en .env}`), aunque el archivo que se estaba leyendo era `caso-b.env`. No cambié
+nada: ni `caso-b.env`, ni el Dockerfile, ni el `compose.yaml`.
 
 **Cómo lo verifiqué**
 Validación normal del proyecto, sin `--env-file` ni `env -u`: `sudo docker compose -p abaco-ensayo config --quiet`
@@ -100,6 +111,8 @@ Validación normal del proyecto, sin `--env-file` ni `env -u`: `sudo docker comp
 contenedor. No se editó el Dockerfile, ni DEV/PRUEBAS, ni se subió ningún `.env`.
 
 **Qué prevendría**
+Validar siempre con `docker compose config` antes de `up`, y al usar `--env-file` comprobar que el archivo tiene
+todas las variables que pide el `compose.yaml`, porque deja de leerse el `.env`.
 
 **Fuente y ayuda recibida**
 - R3 · Docker Compose, variables y archivos `.env` (precedencia: entorno del proceso, después el archivo; con
@@ -109,6 +122,8 @@ contenedor. No se editó el Dockerfile, ni DEV/PRUEBAS, ni se subió ningún `.e
   que elegí dos.
 
 **Siguiente paso**
+Mantener el `.env.example` con todas las variables necesarias y usarlo como lista para revisar cualquier archivo
+de variables nuevo.
 
 Evidencias: [21](evidencias/21-caso-b-validacion-aislada.png) · [22](evidencias/22-caso-b-carpeta-y-entorno.png) ·
 [23](evidencias/23-caso-b-mismo-comando-con-env.png) · [24](evidencias/24-caso-b-validacion-normal.png).
@@ -147,6 +162,11 @@ hipótesis 1; el mismo volumen en rutas distintas, la 2.
   el 21 oct 13:17).
 
 **Qué cambié o descarté**
+Confirmé la hipótesis 1 y descarté la 2. Los dos contenedores montan su volumen en la misma ruta (`/datos`), pero
+cada uno usa el suyo: `abaco-ensayo_datos` y `abaco-comprobacion_datos`. Compose antepone el nombre de proyecto
+(`-p`) a los volúmenes, así que con otro nombre crea un volumen nuevo y vacío. El dato no se había perdido: seguía
+en el volumen de ENSAYO. No cambié ni moví ningún dato. Lo leí en solo lectura (`:ro`) desde su volumen original y
+paré solo `abaco-comprobacion`, sin `-v`, de modo que sus recursos siguen ahí.
 
 **Cómo lo verifiqué**
 - Acceso al dato correcto sin borrarlo, sin escribir encima ni copiarlo: lectura desde su volumen original en solo
@@ -160,6 +180,9 @@ hipótesis 1; el mismo volumen en rutas distintas, la 2.
   `Abaco PRUEBAS` y `ABACO ENSAYO ENTREGA A`; DEV y PRUEBAS siguen `Up 4 days`, ENSAYO `Up 2 days`.
 
 **Qué prevendría**
+Usar siempre el mismo nombre de proyecto para el mismo entorno y, antes de dar un dato por perdido, comprobar con
+`docker inspect` qué volumen tiene montado el contenedor. Si una comprobación necesita los datos de otro entorno,
+montarlos en solo lectura y no copiarlos.
 
 **Fuente y ayuda recibida**
 - R2 · Docker Compose, nombre de proyecto (separa los recursos de cada ejecución).
@@ -169,6 +192,8 @@ hipótesis 1; el mismo volumen en rutas distintas, la 2.
   las que elegí dos.
 
 **Siguiente paso**
+Decidir con el tutor si se borran los recursos que quedan de la comprobación (contenedor, volumen vacío y red de
+`abaco-comprobacion`). No los borré porque la tarea no lo permite.
 
 Evidencias: [25](evidencias/25-caso-c-estado-inicial.png) · [26](evidencias/26-caso-c-config-comprobacion.png) ·
 [27a](evidencias/27a-caso-c-up-ps.png) · [27b](evidencias/27b-caso-c-pagina-y-dato.png) · [28](evidencias/28-caso-c-montajes.png) ·
@@ -189,6 +214,10 @@ powershell -ExecutionPolicy Bypass -File .\comprobar-sitio.ps1 -Url http://ensay
 `-ExecutionPolicy Bypass` permite el script solo en esa ejecución, sin cambiar la configuración de Windows.
 
 **Qué problema evita y sobre qué entorno actúa**
+Evita el 200 engañoso del Caso A: un sitio puede responder 200 y no ser la página correcta (por ejemplo, la de
+Nginx por defecto). El script solo da OK si hay 200 y además aparece el marcador exacto de la página esperada. Actúa
+sobre cualquier sitio que se le pase con `-Url` y `-Marcador`; en las pruebas, sobre ENSAYO y DEV. Se ejecuta desde
+el PC, como un usuario real, y solo hace peticiones de lectura: no cambia nada en la VM.
 
 **Pruebas** (desde otra sesión de PowerShell: PID 24716; la habitual era la 18604)
 | Petición | Código | Tamaño | Título | Marcador | Resultado |
@@ -201,6 +230,13 @@ powershell -ExecutionPolicy Bypass -File .\comprobar-sitio.ps1 -Url http://ensay
 Ninguna prueba cambió configuración ni datos: solo peticiones GET.
 
 **Límites**
+- Comprueba un sitio por ejecución, y es manual: no se ejecuta solo ni avisa.
+- Mira la página, no el volumen: no comprueba que `/datos/prueba.txt` tenga el dato correcto.
+- Que aparezca el marcador no garantiza que el resto de la página o la aplicación funcionen bien.
+- Depende del PC: necesita `curl.exe` y que el nombre esté en el `hosts` (o resuelva); si falla la resolución, solo
+  dice "sin respuesta", sin distinguir la causa.
+- Un FALLO no siempre es malo: en el puerto 3011 desde el PC, "sin respuesta" es justo lo esperado, porque ese puerto
+  no debe ser accesible. Hay que interpretar el resultado según lo que se quiere comprobar.
 
 **Fuente y ayuda recibida**
 - R6 · curl (`-w`, `--max-time`, `--noproxy`).
